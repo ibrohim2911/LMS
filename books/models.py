@@ -10,8 +10,8 @@ class Journals(BaseModel):
     publisher=models.CharField(max_length=300)
     description=models.TextField()
     iccn=models.CharField(max_length=300)
-    start_date=models.DateField()
-    end_date=models.DateField()
+    start_date=models.DateField(null=True, blank=True)
+    end_date=models.DateField(null=True, blank=True)
 class Category(BaseModel):
     name = models.CharField(max_length=255)
     visible = models.BooleanField(default=True)
