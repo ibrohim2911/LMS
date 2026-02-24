@@ -8,7 +8,7 @@ from datetime import timedelta, date
 def warning():
     now = timezone.now()
     warning_date = now + timedelta(days=1)
-    reservations = Reservation.objects.filter(status=2,  place__lte=warning_date.day)
+    reservations = Reservation.objects.filter(status=2, book__read_time=warning_date.date())
     for reservation in reservations:
         reservation.status = 4  # Mark as should have returned
         reservation.save()
