@@ -17,6 +17,7 @@ class User(AbstractUser):
     ban_expires_at = models.DateTimeField(null=True, blank=True, default=None,
                                           help_text="The user is banned until this date and time.")
     max_allowed = models.IntegerField(default=3)
+    img = models.ImageField(upload_to='user_images/', null=True, blank=True)
     @property
     def is_banned(self):
         """Checks if the user is currently banned."""

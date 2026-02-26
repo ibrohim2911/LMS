@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Category, Tag, Kitob, Ebook, Reservation, Journals
+from .models import Category, Tag, Kitob, Ebook, Reservation, Journals, Rating
 from users.serializers import UserSerializer
 from users.models import User
 
@@ -38,6 +38,8 @@ class KitobSerializer(serializers.ModelSerializer):
     category = CategorySerializer(read_only=True)
     tags = TagSerializer(many=True, read_only=True)
     reader = UserSerializer(read_only=True)
+    ratings = RatingSerializer(many=True, read_only=True)
+    average_rating = serializers.SerializerMethodField(read_only=True)
 
     # For write operations (create/update), accept the ID for the foreign key/many-to-many fields.
     category_id = serializers.PrimaryKeyRelatedField(
@@ -49,14 +51,30 @@ class KitobSerializer(serializers.ModelSerializer):
     reader_id = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.all(), source='reader', write_only=True, allow_null=True, required=False
     )
+    
+    def get_average_rating(self, obj):
+        """Calculate and return the average rating for the book."""
+        return obj.get_average_rating()
 
     class Meta:
         model = Kitob
         fields = (
-            'id', 'name', 'description', 'author', 'isbn', 'rating', 'is_available',
-            'category', 'tags', 'reader',  # Read-only nested fields
+            'id', 'name', 'description', 'author', 'isbn', 'rating', 'is_available','is_frequent', 'quantity','img', 'c_at', 'u_at',
+            'category', 'tags', 'reader', 'ratings', 'average_rating',  # Read-only nested fields
             'category_id', 'tag_ids', 'reader_id'  # Write-only ID fields
         )
+
+
+class RatingSerializer(serializers.ModelSerializer):
+    """
+    Serializer for the Rating model.
+    """
+    user = serializers.StringRelatedField(read_only=True)
+    
+    class Meta:
+        model = Rating
+        fields = ('id', 'user', 'score', 'comment', 'c_at')
+        read_only_fields = ('c_at',)
 
 
 class ReservationSerializer(serializers.ModelSerializer):

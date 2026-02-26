@@ -4,10 +4,13 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-django = "==4"
 djangorestframework = "*"
 drf-spectacular = "*"
 celery = "*"
+djangorestframework-simplejwt = "*"
+django = {extras = ["argon2"], version = "*"}
+pillow = "*"
+django-cors-headers = "*"
 
 [dev-packages]
 
