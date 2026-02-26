@@ -32,6 +32,16 @@ class EbookSerializer(serializers.ModelSerializer):
         model = Ebook
         fields = '__all__'
 
+class RatingSerializer(serializers.ModelSerializer):
+    """
+    Serializer for the Rating model.
+    """
+    user = serializers.StringRelatedField(read_only=True)
+    
+    class Meta:
+        model = Rating
+        fields = ('id', 'user', 'score', 'comment', 'c_at')
+        read_only_fields = ('c_at',)
 
 class KitobSerializer(serializers.ModelSerializer):
     # For read operations, show the full nested object.
@@ -65,16 +75,6 @@ class KitobSerializer(serializers.ModelSerializer):
         )
 
 
-class RatingSerializer(serializers.ModelSerializer):
-    """
-    Serializer for the Rating model.
-    """
-    user = serializers.StringRelatedField(read_only=True)
-    
-    class Meta:
-        model = Rating
-        fields = ('id', 'user', 'score', 'comment', 'c_at')
-        read_only_fields = ('c_at',)
 
 
 class ReservationSerializer(serializers.ModelSerializer):
