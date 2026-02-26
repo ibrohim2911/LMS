@@ -44,7 +44,9 @@ class Kitob(BaseModel):
     is_frequent=models.BooleanField()
     img = models.ImageField(upload_to='book_images/', null=True, blank=True)
     published_date = models.DateField(null=True, blank=True)
-    
+    pdf = models.FileField(upload_to='book_pdfs/', null=True, blank=True)
+    audio = models.FileField(upload_to='book_audios/', null=True, blank=True)
+    is_physical = models.BooleanField(default=True)
     def __str__(self):
         return self.name + " " + self.author
     
@@ -56,15 +58,6 @@ class Kitob(BaseModel):
         """Returns the average rating for this book, or None if no ratings exist."""
         avg = self.ratings.aggregate(Avg('score'))['score__avg']
         return round(avg, 1) if avg else None
-class Ebook(BaseModel):
-    author = models.CharField(max_length=255)
-    title = models.CharField(max_length=255)
-    description = models.TextField()
-    new_column = models.BigIntegerField()
-    img = models.ImageField(upload_to='ebook_images/', null=True, blank=True)
-    def __str__(self):
-        return self.title
-
 class Reservation(BaseModel):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     book = models.ForeignKey(Kitob, on_delete=models.CASCADE)
@@ -78,7 +71,7 @@ class Rating(BaseModel):
     book = models.ForeignKey(Kitob, on_delete=models.CASCADE, related_name='ratings')
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='given_ratings')
     score = models.IntegerField(choices=[(i, i) for i in range(1, 6)])  # 1-5 stars
-    comment = models.TextField(blank=True, null=True)
+    comment = models.ForeignKey('Comment', null=True, blank=True, on_delete=models.SET_NULL, related_name='rating_comment') 
     
     class Meta:
         unique_together = ('book', 'user')  # One rating per user per book
@@ -86,7 +79,17 @@ class Rating(BaseModel):
     def __str__(self):
         return f'{self.user.username} rated {self.book.name} - {self.score} stars'
 
+class Comment(BaseModel):
+    book = models.ForeignKey(Kitob, on_delete=models.CASCADE, related_name='comments')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='comments')
+    reply_to = models.ForeignKey('self', null=True, blank=True, on_delete=models.CASCADE, related_name='replies')
+    rating = models.ForeignKey(Rating, null=True, blank=True, on_delete=models.SET_NULL, related_name='comments')
+    parent = models.ForeignKey('self', null=True, blank=True, on_delete=models.CASCADE, related_name='child_comments')
 
+    content = models.TextField()
+    
+    def __str__(self):
+        return f'{self.user.username} commented on {self.book.name}'
 @receiver(post_save, sender=Reservation)
 def update_book_availability(sender, instance, **kwargs):
     """Update the availability of the book when a reservation is created or updated."""

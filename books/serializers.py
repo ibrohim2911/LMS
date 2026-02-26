@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Category, Tag, Kitob, Ebook, Reservation, Journals, Rating
+from .models import Category, Tag, Kitob, Comment, Reservation, Journals, Rating
 from users.serializers import UserSerializer
 from users.models import User
 
@@ -26,10 +26,10 @@ class JournalsSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-class EbookSerializer(serializers.ModelSerializer):
-    """Serializer for the Ebook model."""
+class CommentSerializer(serializers.ModelSerializer):
+    """Serializer for the Comment model."""
     class Meta:
-        model = Ebook
+        model = Comment
         fields = '__all__'
 
 class RatingSerializer(serializers.ModelSerializer):
@@ -69,7 +69,7 @@ class KitobSerializer(serializers.ModelSerializer):
     class Meta:
         model = Kitob
         fields = (
-            'id', 'name', 'description', 'author', 'isbn', 'rating', 'is_available','is_frequent', 'quantity','img', 'c_at', 'u_at',
+            'id', 'name', 'description', 'author', 'isbn', 'rating', 'is_available','is_frequent', 'quantity','img', 'c_at', 'u_at', 'published_date', 'pdf', 'audio', 'is_physical',
             'category', 'tags', 'reader', 'ratings', 'average_rating',  # Read-only nested fields
             'category_id', 'tag_ids', 'reader_id'  # Write-only ID fields
         )
@@ -90,3 +90,4 @@ class ReservationSerializer(serializers.ModelSerializer):
         fields = ('id', 'user', 'book', 'status', 'place', 'c_at')
         # Make fields read-only if they should be set by the system, not the user directly.
         read_only_fields = ('status', 'c_at')
+

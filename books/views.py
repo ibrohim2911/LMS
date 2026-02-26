@@ -8,9 +8,9 @@ from django.db.models import F
 from drf_spectacular.utils import extend_schema
 from drf_spectacular.openapi import OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
-from .models import Category, Tag, Kitob, Ebook, Reservation, Journals, Rating
+from .models import Category, Tag, Kitob, Comment, Reservation, Journals, Rating
 from .serializers import (
-    CategorySerializer, TagSerializer, KitobSerializer, EbookSerializer,
+    CategorySerializer, TagSerializer, KitobSerializer, CommentSerializer,
     ReservationSerializer, JournalsSerializer, RatingSerializer
 )
 from .paginator import KitobPagination
@@ -144,7 +144,27 @@ class KitobViewSet(viewsets.ModelViewSet):
                 type=OpenApiTypes.STR,
                 location=OpenApiParameter.QUERY,
             ),
-
+            OpenApiParameter(
+                name='is_audio',
+                description='Filter books that have an audio version available',
+                required=False,
+                type=OpenApiTypes.BOOL,
+                location=OpenApiParameter.QUERY,
+            ),
+            OpenApiParameter(
+                name='is_pdf',
+                description='Filter books that have a PDF version available',
+                required=False,
+                type=OpenApiTypes.BOOL,
+                location=OpenApiParameter.QUERY,
+            ),
+            OpenApiParameter(
+                name='is_physical',
+                description='Filter books that are physical copies',
+                required=False,
+                type=OpenApiTypes.BOOL,
+                location=OpenApiParameter.QUERY,
+            ),
         ]
     )
     def list(self, request, *args, **kwargs):
@@ -165,13 +185,16 @@ class KitobViewSet(viewsets.ModelViewSet):
         return super().retrieve(request, *args, **kwargs)
 
     def get_queryset(self):
-        category = self.request.query_params.get('category', None)
+        category = self.request.query_params.getlist('category', None)
         sort = self.request.query_params.get('sort', None)
         tags = self.request.query_params.getlist('tags', None)
         time_range = self.request.query_params.get('time_range', None)
         published_date = self.request.query_params.get('published_date', None)
         author = self.request.query_params.get('author', None)
         search = self.request.query_params.get('search', None)
+        is_audio = self.request.query_params.get('is_audio', None)
+        is_pdf = self.request.query_params.get('is_pdf', None)
+        is_physical = self.request.query_params.get('is_physical', None)
         if search:
             queryset = Kitob.objects.filter(visible=True, name__icontains=search) | Kitob.objects.filter(visible=True, author__icontains=search)
         else:
@@ -187,6 +210,12 @@ class KitobViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(published_date=published_date)
         if author:
             queryset = queryset.filter(author__icontains=author)
+        if is_audio:
+            queryset = queryset.filter(audio__isnull=False)
+        if is_pdf:
+            queryset = queryset.filter(pdf__isnull=False)
+        if is_physical:
+            queryset = queryset.filter(is_physical=True)
         if sort == 'latest':
             queryset = queryset.order_by('-c_at')
         elif sort == 'oldest':
@@ -215,45 +244,7 @@ class KitobViewSet(viewsets.ModelViewSet):
     summary="Manage ebooks.",
     tags=["Ebooks"],
 )
-class EbookViewSet(viewsets.ModelViewSet):
-    """API endpoint for ebooks."""
-    queryset = Ebook.objects.all()
-    serializer_class = EbookSerializer
-    pagination_class = KitobPagination
 
-    @extend_schema(
-        summary="Retrieve a list of ebooks.",
-        description="Get a paginated list of ebooks. Supports filtering by category and other attributes.",
-    )
-    def list(self, request, *args, **kwargs):
-        return super().list(request, *args, **kwargs)
-
-    @extend_schema(
-        summary="Retrieve a single ebook by ID.",
-        description="Get detailed information about a specific ebook, including its author, category, and file details.",
-    )
-    def retrieve(self, request, *args, **kwargs):
-        return super().retrieve(request, *args, **kwargs)
-
-    @extend_schema(
-        summary="Create a new ebook.",
-        description="Create a new ebook. This endpoint is restricted to authenticated users.",
-    )
-    def create(self, request, *args, **kwargs):
-        return super().create(request, *args, **kwargs)
-
-    def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
-            permission_classes = [AllowAny]
-        else:
-            permission_classes = [IsAuthenticated]
-        return [permission() for permission in permission_classes]
-
-@extend_schema(
-    description="API endpoint for journals. Supports filtering and CRUD operations.",
-    summary="Manage journals.",
-    tags=["Journals"],
-)
 class JournalsViewSet(viewsets.ModelViewSet):
     """API endpoint for journals."""
     queryset = Journals.objects.all()
@@ -469,3 +460,27 @@ class RatingViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         """Automatically set the user to the current authenticated user."""
         serializer.save(user=self.request.user)
+class CommentViewSet(viewsets.ModelViewSet):
+    """API endpoint for book comments."""
+    queryset = Comment.objects.all()
+    serializer_class = CommentSerializer
+    def get_queryset(self):
+        
+        parent = self.request.query_params.get('parent', None)
+        book = self.request.query_params.get('book', None)
+        user = self.request.query_params.get('user', None)
+        if parent:
+            self.queryset = self.queryset.filter(parent=parent)
+        if book:
+            self.queryset = self.queryset.filter(book=book)
+        if user:
+            self.queryset = self.queryset.filter(user=user)
+        
+        
+        return self.queryset.order_by('c_at')
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            permission_classes = [AllowAny]
+        else:
+            permission_classes = [IsAuthenticated]
+        return [permission() for permission in permission_classes]
