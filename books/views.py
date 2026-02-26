@@ -1,5 +1,5 @@
 from rest_framework import viewsets
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
@@ -14,6 +14,16 @@ from .serializers import (
     ReservationSerializer, JournalsSerializer, RatingSerializer
 )
 from .paginator import KitobPagination
+@extend_schema(
+    description="API endpoint for categories. Supports filtering and CRUD operations.",
+    methods=["GET"],
+    summary="Retrieve a list of categories.",
+    tags=["Categories"],
+    responses={
+        200: CategorySerializer(many=True),
+        401: OpenApiTypes.OBJECT,
+    }
+)
 class CategoryViewSet(viewsets.ModelViewSet):
     """API endpoint for categories."""
     queryset = Category.objects.all()
@@ -24,7 +34,29 @@ class CategoryViewSet(viewsets.ModelViewSet):
         else:
             permission_classes = [IsAuthenticated]
         return [permission() for permission in permission_classes]
+    @extend_schema(
+        description="Retrieve a single category by its ID.",
+        summary="Retrieve a category.",
+        tags=["Categories"],
+        responses={
+            200: CategorySerializer(),
+            401: OpenApiTypes.OBJECT,
+            404: OpenApiTypes.OBJECT,
+        }
+    )
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
 
+@extend_schema(
+    description="API endpoint for tags. Supports filtering and CRUD operations.",
+    methods=["GET"],
+    summary="Retrieve a list of tags.",
+    tags=["Tags"],
+    responses={
+        200: TagSerializer(many=True),
+        401: OpenApiTypes.OBJECT,
+    }
+)
 class TagViewSet(viewsets.ModelViewSet):
     """API endpoint for tags."""
     queryset = Tag.objects.all()
@@ -35,7 +67,24 @@ class TagViewSet(viewsets.ModelViewSet):
         else:
             permission_classes = [IsAuthenticated]
         return [permission() for permission in permission_classes]
+    @extend_schema(
+        description="Retrieve a single tag by its ID.",
+        summary="Retrieve a tag.",
+        tags=["Tags"],
+        responses={
+            200: TagSerializer(),
+            401: OpenApiTypes.OBJECT,
+            404: OpenApiTypes.OBJECT,
+        }
+    )
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
 
+@extend_schema(
+    description="API endpoint for books (Kitob). Supports filtering, sorting, and searching.",
+    summary="Manage books (Kitob).",
+    tags=["Books (Kitob)"],
+)
 class KitobViewSet(viewsets.ModelViewSet):
     """API endpoint for books (Kitob)."""
     queryset = Kitob.objects.all()
@@ -53,10 +102,10 @@ class KitobViewSet(viewsets.ModelViewSet):
                 location=OpenApiParameter.QUERY,
             ),
             OpenApiParameter(
-                name='latest',
-                description='Get only the latest 8 books (boolean flag)',
+                name='sort',
+                description='sort books based on criteria (latest, oldest, rating-high, rating-low, name-high, name-low, published-date-high, published-date-low)',
                 required=False,
-                type=OpenApiTypes.BOOL,
+                type=OpenApiTypes.STR,
                 location=OpenApiParameter.QUERY,
             ),
             OpenApiParameter(
@@ -74,10 +123,46 @@ class KitobViewSet(viewsets.ModelViewSet):
                 type=OpenApiTypes.STR,
                 location=OpenApiParameter.QUERY,
             ),
+            OpenApiParameter(
+                name='published_date',
+                description='Filter books by published date (format: YYYY-MM-DD)',
+                required=False,
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+            ),
+            OpenApiParameter(
+                name='author',
+                description='Filter books by author name (partial match)',
+                required=False,
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+            ),
+            OpenApiParameter(
+                name='search',
+                description='Search for books by name or author (partial match)',
+                required=False,
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+            ),
+
         ]
     )
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
+
+    @extend_schema(
+        summary="Retrieve a single book by ID.",
+        description="""
+        Get detailed information about a specific book, including its author, category, tags, and availability.
+        This endpoint provides comprehensive data for a single book entry.
+        """,
+        responses={
+            200: KitobSerializer(),
+            404: OpenApiTypes.OBJECT,
+        }
+    )
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
 
     def get_queryset(self):
         category = self.request.query_params.get('category', None)
@@ -125,11 +210,38 @@ class KitobViewSet(viewsets.ModelViewSet):
         else:
             permission_classes = [IsAuthenticated]
         return [permission() for permission in permission_classes]
+@extend_schema(
+    description="API endpoint for ebooks. Supports filtering and CRUD operations.",
+    summary="Manage ebooks.",
+    tags=["Ebooks"],
+)
 class EbookViewSet(viewsets.ModelViewSet):
     """API endpoint for ebooks."""
     queryset = Ebook.objects.all()
     serializer_class = EbookSerializer
     pagination_class = KitobPagination
+
+    @extend_schema(
+        summary="Retrieve a list of ebooks.",
+        description="Get a paginated list of ebooks. Supports filtering by category and other attributes.",
+    )
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+
+    @extend_schema(
+        summary="Retrieve a single ebook by ID.",
+        description="Get detailed information about a specific ebook, including its author, category, and file details.",
+    )
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
+
+    @extend_schema(
+        summary="Create a new ebook.",
+        description="Create a new ebook. This endpoint is restricted to authenticated users.",
+    )
+    def create(self, request, *args, **kwargs):
+        return super().create(request, *args, **kwargs)
+
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
             permission_classes = [AllowAny]
@@ -137,11 +249,38 @@ class EbookViewSet(viewsets.ModelViewSet):
             permission_classes = [IsAuthenticated]
         return [permission() for permission in permission_classes]
 
+@extend_schema(
+    description="API endpoint for journals. Supports filtering and CRUD operations.",
+    summary="Manage journals.",
+    tags=["Journals"],
+)
 class JournalsViewSet(viewsets.ModelViewSet):
     """API endpoint for journals."""
     queryset = Journals.objects.all()
     serializer_class = JournalsSerializer
     pagination_class = KitobPagination
+
+    @extend_schema(
+        summary="Retrieve a list of journals.",
+        description="Get a paginated list of journals. Supports filtering by various attributes.",
+    )
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+
+    @extend_schema(
+        summary="Retrieve a single journal by ID.",
+        description="Get detailed information about a specific journal, including its publisher and publication date.",
+    )
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
+
+    @extend_schema(
+        summary="Create a new journal.",
+        description="Create a new journal. This endpoint is restricted to authenticated users.",
+    )
+    def create(self, request, *args, **kwargs):
+        return super().create(request, *args, **kwargs)
+
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
             permission_classes = [AllowAny]
@@ -149,13 +288,52 @@ class JournalsViewSet(viewsets.ModelViewSet):
             permission_classes = [IsAuthenticated]
         return [permission() for permission in permission_classes]
 
+@extend_schema(
+    description="API endpoint for reservations. Supports creating, managing, and tracking book reservations.",
+    summary="Manage reservations.",
+    tags=["Reservations"],
+)
 class ReservationViewSet(viewsets.ModelViewSet):
     """API endpoint for reservations."""
     queryset = Reservation.objects.all()
     serializer_class = ReservationSerializer
     permission_classes = [IsAuthenticated]
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    @extend_schema(
+        summary="Retrieve a list of reservations.",
+        description="Get a paginated list of reservations. This endpoint is restricted to authenticated users.",
+    )
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+
+    @extend_schema(
+        summary="Retrieve a single reservation by ID.",
+        description="Get detailed information about a specific reservation, including the book and user details.",
+    )
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
+
+    @extend_schema(
+        summary="Create a new reservation.",
+        description="Create a new reservation for a book. This endpoint is restricted to authenticated users.",
+    )
+    def create(self, request, *args, **kwargs):
+        return super().create(request, *args, **kwargs)
+
+    @extend_schema(
+        summary="Approve a reservation.",
+        description="""
+        Approve a pending reservation for a book. This action decrements the book's quantity and marks the reservation as approved.
+        This endpoint is restricted to authenticated users.
+        """,
+        responses={
+            200: OpenApiTypes.OBJECT,
+            400: OpenApiTypes.OBJECT,
+            404: OpenApiTypes.OBJECT,
+            409: OpenApiTypes.OBJECT,
+        }
+    )
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
     def approve(self, request, pk=None):
         """Approve a reservation and decrement book quantity."""
         reservation = self.get_object()
@@ -198,7 +376,19 @@ class ReservationViewSet(viewsets.ModelViewSet):
             status=status.HTTP_200_OK
         )
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    @extend_schema(
+        summary="Mark a book as returned.",
+        description="""
+        Mark a book as returned. This action increments the book's quantity and updates the reservation status.
+        This endpoint is restricted to authenticated users.
+        """,
+        responses={
+            200: OpenApiTypes.OBJECT,
+            400: OpenApiTypes.OBJECT,
+            404: OpenApiTypes.OBJECT,
+        }
+    )
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
     def return_book(self, request, pk=None):
         """Mark a reservation as returned and increment book quantity."""
         reservation = self.get_object()
@@ -238,12 +428,36 @@ class ReservationViewSet(viewsets.ModelViewSet):
         )
 
 
+@extend_schema(
+    description="API endpoint for book ratings. Allows users to rate books and view ratings.",
+    summary="Manage book ratings.",
+    tags=["Ratings"],
+)
 class RatingViewSet(viewsets.ModelViewSet):
     """API endpoint for book ratings."""
     queryset = Rating.objects.all()
     serializer_class = RatingSerializer
-    permission_classes = [IsAuthenticated]
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            permission_classes = [AllowAny]
+        else:
+            permission_classes = [IsAuthenticated]
+        return [permission() for permission in permission_classes] 
     
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name='book_id',
+                description='Filter ratings by book ID.',
+                required=False,
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+            ),
+        ],
+    )
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+
     def get_queryset(self):
         """Allow filtering by book_id query parameter."""
         queryset = Rating.objects.all()
