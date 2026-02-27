@@ -1,0 +1,3 @@
+[submodule "project-library"]
+	path = project-library
+	url = https://github.com/salimovone/project-library.git
