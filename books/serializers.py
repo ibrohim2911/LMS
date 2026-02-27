@@ -26,11 +26,6 @@ class JournalsSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-class CommentSerializer(serializers.ModelSerializer):
-    """Serializer for the Comment model."""
-    class Meta:
-        model = Comment
-        fields = '__all__'
 
 class RatingSerializer(serializers.ModelSerializer):
     """
@@ -91,3 +86,10 @@ class ReservationSerializer(serializers.ModelSerializer):
         # Make fields read-only if they should be set by the system, not the user directly.
         read_only_fields = ('status', 'c_at')
 
+class CommentSerializer(serializers.ModelSerializer):
+    """Serializer for the Comment model."""
+    user  = UserSerializer(read_only=True)
+    book = KitobSerializer(read_only=True)
+    class Meta:
+        model = Comment
+        fields = '__all__'

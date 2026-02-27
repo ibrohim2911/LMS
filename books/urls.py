@@ -9,11 +9,15 @@ router = DefaultRouter()
 router.register(r'categories', CategoryViewSet, basename='category')
 router.register(r'tags', TagViewSet, basename='tag')
 router.register(r'kitob', KitobViewSet, basename='kitob')
-router.register(r'comments', CommentViewSet, basename='comment')
 router.register(r'journals', JournalsViewSet, basename='journals')
 router.register(r'reservations', ReservationViewSet, basename='reservation')
 router.register(r'ratings', RatingViewSet, basename='rating')
-
+comment = CommentViewSet.as_view({
+    'get': 'list',
+    'post': 'create'
+})
 urlpatterns = [
     path('', include(router.urls)),
+    path('kitob/<int:kitob_pk>/comments/', comment, name='kitob-comments'),
+
 ]

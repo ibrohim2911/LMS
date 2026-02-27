@@ -460,19 +460,25 @@ class RatingViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         """Automatically set the user to the current authenticated user."""
         serializer.save(user=self.request.user)
+@extend_schema(
+    description="API endpoint for book comments. Allows users to comment on books and view comments.",
+    summary="Manage book comments.",
+    tags=["Comments"],
+)
 class CommentViewSet(viewsets.ModelViewSet):
     """API endpoint for book comments."""
     queryset = Comment.objects.all()
     serializer_class = CommentSerializer
+
     def get_queryset(self):
         
         parent = self.request.query_params.get('parent', None)
-        book = self.request.query_params.get('book', None)
+        book_id = self.kwargs.get('kitob_pk')
         user = self.request.query_params.get('user', None)
         if parent:
             self.queryset = self.queryset.filter(parent=parent)
-        if book:
-            self.queryset = self.queryset.filter(book=book)
+        if book_id:
+            self.queryset = self.queryset.filter(book_id=book_id)
         if user:
             self.queryset = self.queryset.filter(user=user)
         
@@ -484,3 +490,4 @@ class CommentViewSet(viewsets.ModelViewSet):
         else:
             permission_classes = [IsAuthenticated]
         return [permission() for permission in permission_classes]
+    
