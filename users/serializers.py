@@ -14,7 +14,7 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = (
             'id', 'username', 'password', 'email', 'first_name', 'last_name',
-            'phone_number', 'role', 'is_banned', 'ban_expires_at'
+            'phone_number', 'role', 'is_banned', 'ban_expires_at', 'max_allowed', 'img', 'last_login'
         )
         # Make the password write-only so it's not sent back in API responses.
         extra_kwargs = {

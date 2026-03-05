@@ -1,8 +1,7 @@
 from rest_framework import serializers
-from .models import Category, Tag, Kitob, Comment, Reservation, Journals, Rating
+from .models import Category, Tag, Kitob, Comment, Reservation, Journals, Rating, Bookmark
 from users.serializers import UserSerializer
 from users.models import User
-
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -64,7 +63,8 @@ class KitobSerializer(serializers.ModelSerializer):
     class Meta:
         model = Kitob
         fields = (
-            'id', 'name', 'description', 'author', 'isbn', 'rating', 'is_available','is_frequent', 'quantity','img', 'c_at', 'u_at', 'published_date', 'pdf', 'audio', 'is_physical',
+            'id', 'name', 'description', 'author', 'isbn', 'rating', 'is_available','is_frequent', 
+            'quantity','img', 'c_at', 'u_at', 'published_date', 'pdf', 'audio', 'is_physical',
             'category', 'tags', 'reader', 'ratings', 'average_rating',  # Read-only nested fields
             'category_id', 'tag_ids', 'reader_id'  # Write-only ID fields
         )
@@ -93,3 +93,12 @@ class CommentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Comment
         fields = '__all__'
+class BookmarkSerializer(serializers.ModelSerializer):
+    """Serializer for the Bookmark model."""
+    user = UserSerializer(read_only=True)
+    book = KitobSerializer(read_only=True)
+
+    class Meta:
+        model = Bookmark
+        fields = ('id', 'user', 'book', 'c_at')
+        read_only_fields = ('c_at',)

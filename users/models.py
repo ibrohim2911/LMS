@@ -5,14 +5,15 @@ from django.utils import timezone
 USER_ROLES = (
     ("admin","admin"),
     ("staff","staff"),
-    ("student","student")
+    ("student","student"),
+    ("teacher","teacher"),
     )
 class User(AbstractUser):
     """
     Custom user model that includes roles and a temporary ban mechanism.
     """
-
-    role = models.IntegerField(default=1)
+    role = models.CharField(max_length=10, choices=USER_ROLES, default="student")
+    is_banned = models.BooleanField(default=False)  # This field is now redundant but kept for backward compatibility
     phone_number = models.CharField(max_length=20, blank=True, null=True)
     ban_expires_at = models.DateTimeField(null=True, blank=True, default=None,
                                           help_text="The user is banned until this date and time.")
@@ -23,6 +24,5 @@ class User(AbstractUser):
         """Checks if the user is currently banned."""
         if self.ban_expires_at is None:
             return False
-        # Compare the expiration time with the current time 
         else:
             return timezone.now() < self.ban_expires_at

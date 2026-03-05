@@ -7,5 +7,5 @@ router.register(r'users', UserViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),
-    path('me/', getme, name='getme'),
+    path('me/', getme.as_view(), name='getme'),
 ]

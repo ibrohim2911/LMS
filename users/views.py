@@ -1,15 +1,24 @@
 from rest_framework.response import Response
 from rest_framework import viewsets
+from rest_framework.views import APIView
 from .models import User
 from .serializers import UserSerializer
-
-def getme(request):
+from rest_framework.permissions import IsAuthenticated
+from drf_spectacular.utils import extend_schema
+@extend_schema(
+    methods=['get'], responses={200: UserSerializer, 401: 'Unauthorized'},
+    description="Get the current authenticated user's information.",
+)
+class getme(APIView):
     """API endpoint to get the current authenticated user's information."""
-    if request.user.is_authenticated:
-        serializer = UserSerializer(request.user)
-        return Response(serializer.data)
-    else:
-        return Response({'detail': 'Authentication credentials were not provided.'}, status=401)
+    def get(self, request):
+        if request.user.is_authenticated:
+            serializer = UserSerializer(request.user)
+            return Response(serializer.data)
+        else:
+            return Response({'detail': 'Authentication credentials were not provided.'}, status=401)
+    permission_classes = [IsAuthenticated]
+    
 class UserViewSet(viewsets.ModelViewSet):
     """
     API endpoint that allows users to be viewed or edited.

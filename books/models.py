@@ -21,23 +21,34 @@ class Category(BaseModel):
     icon = models.TextField(null=True, blank=True)
     def __str__(self):
         return self.name
-
+class subCategory(BaseModel):
+    name = models.CharField(max_length=255)
+    category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='subcategories')
+    visible = models.BooleanField(default=True)
+    def __str__(self):
+        return self.name
 class Tag(models.Model):
     name = models.CharField(max_length=255)
 
     def __str__(self):
         return self.name
+class Author(models.Model):
+    name = models.CharField(max_length=255)
 
+    def __str__(self):
+        return self.name
 class Kitob(BaseModel):
     name = models.CharField(max_length=255)
-    category = models.ForeignKey(Category, on_delete=models.CASCADE)
+    subcategory = models.ForeignKey(subCategory, on_delete=models.SET_NULL, null=True, blank=True)
+    category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True)
     read_time = models.DateField(default=None, null=True, blank=True)
     quantity = models.IntegerField()
     visible = models.BooleanField(default=True)
     reader = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='read_books')
     rating = models.IntegerField(null=True, blank=True)
     description = models.TextField()
-    author = models.CharField(max_length=255)
+    author = models.ManyToManyField(Author)
+    location = models.CharField(max_length=255)
     is_available = models.BooleanField(default=True)
     tags = models.ManyToManyField(Tag)
     isbn = models.CharField(max_length=20)
@@ -47,8 +58,9 @@ class Kitob(BaseModel):
     pdf = models.FileField(upload_to='book_pdfs/', null=True, blank=True)
     audio = models.FileField(upload_to='book_audios/', null=True, blank=True)
     is_physical = models.BooleanField(default=True)
+    pages = models.IntegerField(null=True, blank=True)
     def __str__(self):
-        return self.name + " " + self.author
+        return self.name + " " + ", ".join(str(author) for author in self.author.all())
     
     def get_read_count(self):
         """Returns how many times this book has been read (completed reservations)."""
@@ -90,6 +102,15 @@ class Comment(BaseModel):
     
     def __str__(self):
         return f'{self.user.username} commented on {self.book.name}'
+class Bookmark(BaseModel):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='bookmarks')
+    book = models.ForeignKey(Kitob, on_delete=models.CASCADE, related_name='bookmarks')
+
+    class Meta:
+        unique_together = ('user', 'book')  # Prevent duplicate bookmarks
+
+    def __str__(self):
+        return f'{self.user.username} bookmarked {self.book.name}'
 @receiver(post_save, sender=Reservation)
 def update_book_availability(sender, instance, **kwargs):
     """Update the availability of the book when a reservation is created or updated."""
@@ -193,3 +214,16 @@ def reservation_post_delete(sender, instance, **kwargs):
                 book.save(update_fields=['quantity', 'is_available'])
     except Kitob.DoesNotExist:
         pass
+
+@receiver(post_save, sender=Rating)
+def set_avg_rating(sender,instance,**kwargs):
+    book = instance.book
+    avg_rating = book.ratings.aggregate(Avg('score'))['score__avg']
+    book.rating = round(avg_rating, 1) if avg_rating else None
+    book.save(update_fields=['rating'])
+@receiver(post_delete, sender=Rating)
+def update_avg_rating_on_delete(sender, instance, **kwargs):
+    book = instance.book
+    avg_rating = book.ratings.aggregate(Avg('score'))['score__avg']
+    book.rating = round(avg_rating, 1) if avg_rating else None
+    book.save(update_fields=['rating'])

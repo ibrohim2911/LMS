@@ -12,3 +12,15 @@ class IsNotBanned(BasePermission):
         if request.user and request.user.is_authenticated:
             return not request.user.is_banned
         return True
+class teacherPermission(BasePermission):
+    """
+    Global permission check for teacher users.
+    """
+    message = "You do not have permission to perform this action."
+
+    def has_permission(self, request, view):
+        # Check if the user is authenticated and has the teacher role
+        if request.user and request.user.is_authenticated:
+            return request.user.role == "teacher"  
+        return False
+    

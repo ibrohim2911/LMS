@@ -8,10 +8,10 @@ from django.db.models import F
 from drf_spectacular.utils import extend_schema
 from drf_spectacular.openapi import OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
-from .models import Category, Tag, Kitob, Comment, Reservation, Journals, Rating
+from .models import Category, Tag, Kitob, Comment, Reservation, Journals, Rating, Bookmark
 from .serializers import (
     CategorySerializer, TagSerializer, KitobSerializer, CommentSerializer,
-    ReservationSerializer, JournalsSerializer, RatingSerializer
+    ReservationSerializer, JournalsSerializer, RatingSerializer, BookmarkSerializer
 )
 from .paginator import KitobPagination
 @extend_schema(
@@ -24,6 +24,11 @@ from .paginator import KitobPagination
         401: OpenApiTypes.OBJECT,
     }
 )
+class BookmarkViewSet(viewsets.ModelViewSet):
+    """API endpoint for bookmarks."""
+    queryset = Bookmark.objects.all()
+    serializer_class = BookmarkSerializer
+    permission_classes = [IsAuthenticated]
 class CategoryViewSet(viewsets.ModelViewSet):
     """API endpoint for categories."""
     queryset = Category.objects.all()
