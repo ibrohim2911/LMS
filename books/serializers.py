@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Category, Tag, Kitob, Comment, Reservation, Journals, Rating, Bookmark
+from .models import Category, Tag, Kitob, Comment, Reservation, Journals, Rating, Bookmark, Author, subCategory
 from users.serializers import UserSerializer
 from users.models import User
 
@@ -25,7 +25,16 @@ class JournalsSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-
+class subCategorySerializer(serializers.ModelSerializer):
+    """Serizalizer for sub category model"""
+    class Meta:
+        model = subCategory
+        fields = '__all__'
+class AuthorSerializer(serializers.ModelSerializer):
+    """Serializer for Author"""
+    class Meta:
+        model = Author
+        fields = "name"
 class RatingSerializer(serializers.ModelSerializer):
     """
     Serializer for the Rating model.
@@ -41,10 +50,10 @@ class KitobSerializer(serializers.ModelSerializer):
     # For read operations, show the full nested object.
     category = CategorySerializer(read_only=True)
     tags = TagSerializer(many=True, read_only=True)
-    reader = UserSerializer(read_only=True)
     ratings = RatingSerializer(many=True, read_only=True)
     average_rating = serializers.SerializerMethodField(read_only=True)
-
+    subcategory = subCategorySerializer(read_only=True)
+    author = AuthorSerializer(many=True, read_only=True)
     # For write operations (create/update), accept the ID for the foreign key/many-to-many fields.
     category_id = serializers.PrimaryKeyRelatedField(
         queryset=Category.objects.all(), source='category', write_only=True
@@ -52,10 +61,13 @@ class KitobSerializer(serializers.ModelSerializer):
     tag_ids = serializers.PrimaryKeyRelatedField(
         queryset=Tag.objects.all(), source='tags', many=True, write_only=True, required=False
     )
-    reader_id = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.all(), source='reader', write_only=True, allow_null=True, required=False
-    )
     
+    subcategory_id = serializers.PrimaryKeyRelatedField(
+        queryset=subCategory.objects.all(), source='subcategory', write_only=True 
+    )
+    author_ids = serializers.PrimaryKeyRelatedField(
+        queryset=Author.objects.all(), source='author', write_only=True
+    )
     def get_average_rating(self, obj):
         """Calculate and return the average rating for the book."""
         return obj.get_average_rating()
@@ -64,9 +76,9 @@ class KitobSerializer(serializers.ModelSerializer):
         model = Kitob
         fields = (
             'id', 'name', 'description', 'author', 'isbn', 'rating', 'is_available','is_frequent', 
-            'quantity','img', 'c_at', 'u_at', 'published_date', 'pdf', 'audio', 'is_physical',
-            'category', 'tags', 'reader', 'ratings', 'average_rating',  # Read-only nested fields
-            'category_id', 'tag_ids', 'reader_id'  # Write-only ID fields
+            'quantity','img', 'c_at', 'u_at', 'published_date', 'pdf', 'audio', 'is_physical','pages',
+            'category', 'tags','subcategory', 'reader', 'ratings', 'average_rating',  # Read-only nested fields
+            'category_id', 'tag_ids', 'subcategory_id'  # Write-only ID fields
         )
 
 

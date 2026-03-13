@@ -1,5 +1,8 @@
 from rest_framework import viewsets
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
+from users.permissions import (
+    GuestPermission, StudentPermission, TeacherPermission, LibrarianPermission, AdminPermission, SuperAdminPermission, IsNotBanned
+)
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
@@ -28,16 +31,16 @@ class BookmarkViewSet(viewsets.ModelViewSet):
     """API endpoint for bookmarks."""
     queryset = Bookmark.objects.all()
     serializer_class = BookmarkSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [StudentPermission|LibrarianPermission|SuperAdminPermission, IsNotBanned]
 class CategoryViewSet(viewsets.ModelViewSet):
     """API endpoint for categories."""
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
-            permission_classes = [AllowAny]
+            permission_classes = [GuestPermission|StudentPermission|TeacherPermission|LibrarianPermission|SuperAdminPermission]
         else:
-            permission_classes = [IsAuthenticated]
+            permission_classes = [LibrarianPermission|SuperAdminPermission]
         return [permission() for permission in permission_classes]
     @extend_schema(
         description="Retrieve a single category by its ID.",
@@ -68,9 +71,9 @@ class TagViewSet(viewsets.ModelViewSet):
     serializer_class = TagSerializer
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
-            permission_classes = [AllowAny]
+            permission_classes = [GuestPermission|StudentPermission|TeacherPermission|LibrarianPermission|SuperAdminPermission]
         else:
-            permission_classes = [IsAuthenticated]
+            permission_classes = [LibrarianPermission|SuperAdminPermission]
         return [permission() for permission in permission_classes]
     @extend_schema(
         description="Retrieve a single tag by its ID.",
@@ -94,8 +97,13 @@ class KitobViewSet(viewsets.ModelViewSet):
     """API endpoint for books (Kitob)."""
     queryset = Kitob.objects.all()
     serializer_class = KitobSerializer
-    permission_classes = [AllowAny]
     pagination_class = KitobPagination
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            permission_classes = [GuestPermission|StudentPermission|TeacherPermission|LibrarianPermission|SuperAdminPermission]
+        else:
+            permission_classes = [LibrarianPermission|SuperAdminPermission]
+        return [permission() for permission in permission_classes]
 
     @extend_schema(
         parameters=[
@@ -255,6 +263,12 @@ class JournalsViewSet(viewsets.ModelViewSet):
     queryset = Journals.objects.all()
     serializer_class = JournalsSerializer
     pagination_class = KitobPagination
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve', 'create', 'update', 'partial_update', 'destroy']:
+            permission_classes = [TeacherPermission|SuperAdminPermission]
+        else:
+            permission_classes = [SuperAdminPermission]
+        return [permission() for permission in permission_classes]
 
     @extend_schema(
         summary="Retrieve a list of journals.",
@@ -293,7 +307,12 @@ class ReservationViewSet(viewsets.ModelViewSet):
     """API endpoint for reservations."""
     queryset = Reservation.objects.all()
     serializer_class = ReservationSerializer
-    permission_classes = [IsAuthenticated]
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve', 'create', 'update', 'partial_update', 'destroy']:
+            permission_classes = [StudentPermission|LibrarianPermission|SuperAdminPermission]
+        else:
+            permission_classes = [SuperAdminPermission]
+        return [permission() for permission in permission_classes]
 
     @extend_schema(
         summary="Retrieve a list of reservations.",
@@ -434,11 +453,11 @@ class RatingViewSet(viewsets.ModelViewSet):
     queryset = Rating.objects.all()
     serializer_class = RatingSerializer
     def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
-            permission_classes = [AllowAny]
+        if self.action in ['list', 'retrieve', 'create', 'update', 'partial_update', 'destroy']:
+            permission_classes = [StudentPermission|SuperAdminPermission]
         else:
-            permission_classes = [IsAuthenticated]
-        return [permission() for permission in permission_classes] 
+            permission_classes = [SuperAdminPermission]
+        return [permission() for permission in permission_classes]
     
     @extend_schema(
         parameters=[
@@ -476,7 +495,6 @@ class CommentViewSet(viewsets.ModelViewSet):
     serializer_class = CommentSerializer
 
     def get_queryset(self):
-        
         parent = self.request.query_params.get('parent', None)
         book_id = self.kwargs.get('kitob_pk')
         user = self.request.query_params.get('user', None)
@@ -486,13 +504,12 @@ class CommentViewSet(viewsets.ModelViewSet):
             self.queryset = self.queryset.filter(book_id=book_id)
         if user:
             self.queryset = self.queryset.filter(user=user)
-        
-        
         return self.queryset.order_by('c_at')
+
     def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
-            permission_classes = [AllowAny]
+        if self.action in ['list', 'retrieve', 'create', 'update', 'partial_update', 'destroy']:
+            permission_classes = [StudentPermission|SuperAdminPermission]
         else:
-            permission_classes = [IsAuthenticated]
+            permission_classes = [SuperAdminPermission]
         return [permission() for permission in permission_classes]
     

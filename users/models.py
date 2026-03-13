@@ -4,7 +4,7 @@ from django.utils import timezone
 
 USER_ROLES = (
     ("admin","admin"),
-    ("staff","staff"),
+    ("librarian","librarian"),
     ("student","student"),
     ("teacher","teacher"),
     )

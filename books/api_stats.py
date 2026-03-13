@@ -10,93 +10,63 @@ from django.utils.dateparse import parse_datetime
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
 
-from .models import Kitob, Reservation
+from .models import Kitob, Reservation, Bookmark, Rating
 
 User = get_user_model()
 
-class Stats(APIView):
-    permission_classes = [AllowAny]
+class profileStats(APIView):
+    """
+    API endpoint to get statistics for a user's profile.
+    """
+    permission_classes = [AllowAny]  # Allow any user to access this endpoint
 
     @extend_schema(
-        tags=['Stats'],
         parameters=[
-            OpenApiParameter(
-                name='period',
-                type=OpenApiTypes.STR,
-                location=OpenApiParameter.QUERY,
-                description="Time period for stats (day, week, month, custom). Default is 'day'.",
-                enum=['day', 'week', 'month', 'custom'] # Optional: adds a dropdown in UI
-            ),
-            OpenApiParameter(
-                name="start_time",
-                type=OpenApiTypes.DATETIME,
-                location=OpenApiParameter.QUERY,
-                description="Start of the time window (ISO 8601 format)"
-            ),
-            OpenApiParameter(
-                name="end_time",
-                type=OpenApiTypes.DATETIME,
-                location=OpenApiParameter.QUERY,
-                description="End of the time window (ISO 8601 format)"
-            ),
+            OpenApiParameter(name='user_id', type=OpenApiTypes.INT, description='ID of the user to get stats for'),
+            OpenApiParameter(name='start_date', type=OpenApiTypes.DATE, description='Start date for filtering reservations (YYYY-MM-DD)'),
+            OpenApiParameter(name='end_date', type=OpenApiTypes.DATE, description='End date for filtering reservations (YYYY-MM-DD)'),
         ],
-        responses={200: OpenApiTypes.OBJECT} # You can define a Serializer here for better docs
+        responses={200: 'A JSON object containing the user statistics.'},
+        description="Get statistics for a user's profile, including total reservations, active reservations, and most reserved books."
     )
-    def get(self, request, *args, **kwargs):
-        period = request.query_params.get('period', 'day')
-        start_time_str = request.query_params.get('start_time')
-        end_time_str = request.query_params.get('end_time')
-        now = datetime.now()
+    def get(self, request):
+        user_id = request.query_params.get('user_id')
+        start_date_str = request.query_params.get('start_date')
+        end_date_str = request.query_params.get('end_date')
 
-        # ... (rest of your logic remains exactly the same)
-        # The logic for filtering and date calculation doesn't change 
-        # because that's standard Django/Python.
-        
-        # Determine the date range
-        if period == 'day':
-            start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
-            end_date = now
-        elif period == 'week':
-            start_date = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
-            end_date = now
-        elif period == 'month':
-            start_date = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-            end_date = now
-        elif period == 'custom' and start_time_str and end_time_str:
-            start_date = parse_datetime(start_time_str)
-            end_date = parse_datetime(end_time_str)
-        else:
-            start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
-            end_date = now
+        if not user_id:
+            return Response({'error': 'user_id parameter is required.'}, status=400)
 
-        returned_reservations_filter = Q(
-            reservation__status=3,
-            reservation__created_at__range=(start_date, end_date)
-        )
-        # ... and so on for your queries
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found.'}, status=404)
+
+        # Parse date parameters
+        start_date = parse_datetime(start_date_str) if start_date_str else None
+        end_date = parse_datetime(end_date_str) if end_date_str else None
+
+        # Filter reservations based on date range
+        reservations = Reservation.objects.filter(user=user)
+        if start_date:
+            reservations = reservations.filter(reservation_date__gte=start_date)
+        if end_date:
+            reservations = reservations.filter(reservation_date__lte=end_date)
+
+        total_reservations = reservations.count()
+        active_reservations = reservations.filter(status=2).count()
+        pending_reservations = reservations.filter(status=1).count()
+        returned_reservations = reservations.filter(status=3).count()
+        bookmarks = Bookmark.objects.filter(user=user).count()
+        ratings = Rating.objects.filter(user=user).count()
+        stats = {
+            'total_reservations': total_reservations,
+            'active_reservations': active_reservations,
+            'bookmarks': bookmarks,
+            'ratings': ratings,
+            'pending_reservations': pending_reservations,
+            'returned_reservations': returned_reservations,
         
-        # Return a response so the code is valid
-        approved_reservations_filter = Q(
-            reservation__status=2,
-            reservation__created_at__range=(start_date, end_date)
-        )
-        pending_reservations_filter = Q(
-            reservation__status=1,
-            reservation__created_at__range=(start_date, end_date)
-        )
- 
-        read_per_user = User.objects.annotate(
-            books_read=Count('reservation', filter=returned_reservations_filter)
-        ).values('id', 'username')
-        readings_per_user = User.objects.annotate(
-            books_reading=Count('reservation', filter=Q(approved_reservations_filter))
-        ).values('id', 'username')
-        pending_readings_per_user = User.objects.annotate(
-            books_pending=Count('reservation', filter=Q(pending_reservations_filter))
-        ).values('id', 'username')
-        return Response({
-            'read_per_user': read_per_user,
-            'readings_per_user': readings_per_user,
-            'pending_readings_per_user': pending_readings_per_user,
-        })
-        
+        }
+
+        return Response(stats)

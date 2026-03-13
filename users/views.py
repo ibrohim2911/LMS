@@ -4,6 +4,7 @@ from rest_framework.views import APIView
 from .models import User
 from .serializers import UserSerializer
 from rest_framework.permissions import IsAuthenticated
+from users.permissions import AdminPermission, SuperAdminPermission
 from drf_spectacular.utils import extend_schema
 @extend_schema(
     methods=['get'], responses={200: UserSerializer, 401: 'Unauthorized'},
@@ -11,13 +12,13 @@ from drf_spectacular.utils import extend_schema
 )
 class getme(APIView):
     """API endpoint to get the current authenticated user's information."""
+    permission_classes = [IsAuthenticated]
     def get(self, request):
         if request.user.is_authenticated:
             serializer = UserSerializer(request.user)
             return Response(serializer.data)
         else:
             return Response({'detail': 'Authentication credentials were not provided.'}, status=401)
-    permission_classes = [IsAuthenticated]
     
 class UserViewSet(viewsets.ModelViewSet):
     """
@@ -25,4 +26,4 @@ class UserViewSet(viewsets.ModelViewSet):
     """
     queryset = User.objects.all().order_by('-date_joined')
     serializer_class = UserSerializer
-    # Add permission classes if you want to restrict access, e.g., only admins can list all users.
+    permission_classes = [AdminPermission|SuperAdminPermission]
