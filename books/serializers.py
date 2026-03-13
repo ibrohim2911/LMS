@@ -78,7 +78,7 @@ class KitobSerializer(serializers.ModelSerializer):
             'id', 'name', 'description', 'author', 'isbn', 'rating', 'is_available','is_frequent', 
             'quantity','img', 'c_at', 'u_at', 'published_date', 'pdf', 'audio', 'is_physical','pages',
             'category', 'tags','subcategory', 'reader', 'ratings', 'average_rating',  # Read-only nested fields
-            'category_id', 'tag_ids', 'subcategory_id'  # Write-only ID fields
+            'category_id', 'tag_ids', 'subcategory_id', 'author_ids'  # Write-only ID fields
         )
 
 
