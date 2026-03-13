@@ -10,7 +10,7 @@ from django.utils.dateparse import parse_datetime
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
 
-from .models import Kitob, Reservation, Bookmark, Rating
+from .models import Kitob, Reservation, Bookmark, Rating, Category, subCategory
 
 User = get_user_model()
 
@@ -67,6 +67,28 @@ class profileStats(APIView):
             'pending_reservations': pending_reservations,
             'returned_reservations': returned_reservations,
         
+        }
+
+        return Response(stats)
+class mainPageStats(APIView):
+    """
+    API endpoint to get statistics for the main page.
+    """
+    permission_classes = [AllowAny]  # Allow any user to access this endpoint
+
+    @extend_schema(
+        responses={200: 'A JSON object containing the main page statistics.'},
+        description="Get statistics for the main page, including total books, active reservations, and most reserved books."
+    )
+    def get(self, request):
+        total_books = Kitob.objects.count()
+        active_users = User.objects.filter(is_active=True).count()
+        category_counts = Category.objects.count()
+        category_counts += subCategory.objects.count()
+        stats = {
+            'total_books': total_books,
+            'active_users': active_users,
+            'category_counts': category_counts,
         }
 
         return Response(stats)
