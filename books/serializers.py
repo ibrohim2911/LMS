@@ -34,7 +34,7 @@ class AuthorSerializer(serializers.ModelSerializer):
     """Serializer for Author"""
     class Meta:
         model = Author
-        fields = "name"
+        fields = ("name",)
 class RatingSerializer(serializers.ModelSerializer):
     """
     Serializer for the Rating model.
