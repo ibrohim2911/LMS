@@ -6,6 +6,7 @@ from django.dispatch import receiver
 from django.db.models import F, Avg, Max
 from django.db import transaction
 from django.core.exceptions import ValidationError
+from django.utils import timezone
 
 class Journals(BaseModel):
     name=models.CharField(max_length=300)
@@ -74,7 +75,8 @@ class Reservation(BaseModel):
     book = models.ForeignKey(Kitob, on_delete=models.CASCADE)
     status = models.IntegerField(default=1) # 1 for pending, 2 for approved, 3 returned 4 should have returned.
     place = models.BigIntegerField(null=True, blank=True)
-
+    reserved_from = models.DateTimeField(null=True, blank=True)
+    reserved_until = models.DateTimeField(null=True, blank=True)
     def __str__(self):
         return f'{self.user.username} - {self.book.name}'
 
@@ -182,6 +184,13 @@ def reservation_post_save(sender, instance, created, **kwargs):
             # If reservation was approved now (transitioned to 2), decrement quantity
             if prev_status != instance.status and instance.status == 2:
                 book_qs.update(quantity=F('quantity') - 1)
+                # Set reserved_from and reserved_until
+                now = timezone.now()
+                read_time = instance.book.read_time or 14  # default to 14 days if not set
+                Reservation.objects.filter(pk=instance.pk).update(
+                    reserved_from=now,
+                    reserved_until=now + timezone.timedelta(days=read_time)
+                )
             # If reservation was previously approved and now returned (3) or deleted, increment quantity
             if prev_status == 2 and instance.status == 3:
                 book_qs.update(quantity=F('quantity') + 1)

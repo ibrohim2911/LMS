@@ -16,7 +16,7 @@ from .serializers import (
     CategorySerializer, TagSerializer, KitobSerializer, CommentSerializer,
     ReservationSerializer, JournalsSerializer, RatingSerializer, BookmarkSerializer
 )
-from .paginator import KitobPagination
+from .paginator import KitobPagination, ReservationPagination
 @extend_schema(
     description="API endpoint for categories. Supports filtering and CRUD operations.",
     methods=["GET"],
@@ -305,8 +305,23 @@ class JournalsViewSet(viewsets.ModelViewSet):
 )
 class ReservationViewSet(viewsets.ModelViewSet):
     """API endpoint for reservations."""
-    queryset = Reservation.objects.all()
     serializer_class = ReservationSerializer
+    pagination_class = ReservationPagination
+    def get_queryset(self):
+        queryset = Reservation.objects.all()
+        user_id = self.request.query_params.get('user_id', None)
+        search = self.request.query_params.get('search', None)
+        status = self.request.query_params.get('status', None)
+        sort = self.request.query_params.get('sort', None)
+        if user_id:
+            queryset = queryset.filter(user_id=user_id)
+        if search:
+            queryset = queryset.filter(book__name__icontains=search) | queryset.filter(book__author__icontains=search)
+        if status:
+            queryset = queryset.filter(status=status)
+        if sort:
+            queryset = queryset.order_by(sort)
+        return queryset
     def get_permissions(self):
         if self.action in ['list', 'retrieve', 'create', 'update', 'partial_update', 'destroy']:
             permission_classes = [StudentPermission|LibrarianPermission|SuperAdminPermission]
