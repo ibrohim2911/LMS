@@ -7,7 +7,14 @@ from django.db.models import F, Avg, Max
 from django.db import transaction
 from django.core.exceptions import ValidationError
 from django.utils import timezone
+RESERV_STATUS_CHOICES = (
+    ('pending', 'Pending'),
+    ('approved', 'Approved'),
+    ('given', 'Given'),
+    ('returned', 'Returned'),
+    ('not_returned', 'Not Returned'),
 
+)
 class Journals(BaseModel):
     name=models.CharField(max_length=300)
     publisher=models.CharField(max_length=300)
@@ -73,10 +80,13 @@ class Kitob(BaseModel):
 class Reservation(BaseModel):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     book = models.ForeignKey(Kitob, on_delete=models.CASCADE)
-    status = models.IntegerField(default=1) # 1 for pending, 2 for approved, 3 returned 4 should have returned.
+    status = models.CharField(max_length=20, choices=RESERV_STATUS_CHOICES, default='pending')
     place = models.BigIntegerField(null=True, blank=True)
     reserved_from = models.DateTimeField(null=True, blank=True)
     reserved_until = models.DateTimeField(null=True, blank=True)
+    approved_at = models.DateTimeField(null=True, blank=True)
+    returned_at = models.DateTimeField(null=True, blank=True)
+
     def __str__(self):
         return f'{self.user.username} - {self.book.name}'
 
@@ -112,18 +122,6 @@ class Bookmark(BaseModel):
 
     def __str__(self):
         return f'{self.user.username} bookmarked {self.book.name}'
-@receiver(post_save, sender=Reservation)
-def update_book_availability(sender, instance, **kwargs):
-    """Update the availability of the book when a reservation is created or updated."""
-    book = instance.book
-    if instance.status == 2:  # Approved
-        book.is_available = False
-    elif instance.status == 3:  # Returned
-        book.is_available = True
-    elif instance.status == 4:  # Should have returned
-        book.is_available = False
-    book.save()
-
 
 @receiver(pre_save, sender=Reservation)
 def reservation_pre_save(sender, instance, **kwargs):
@@ -138,22 +136,35 @@ def reservation_pre_save(sender, instance, **kwargs):
     else:
         instance._pre_save_status = None
         instance._pre_save_place = None
-    # Prevent approving a reservation when there are no available copies
-    # If this reservation is transitioning to approved (2) from a non-approved state
-    will_be_approved = (instance.status == 2) and (instance._pre_save_status != 2)
-    if will_be_approved:
-        # instance.book may be a Kitob instance or a pk; ensure we load fresh value
-        book = instance.book
-        if book.quantity <= 0:
+
+    # Validate approval conditions
+    if instance.status == 'approved' and instance._pre_save_status != 'approved':
+        # Check user constraints
+        if instance.user.is_banned:
+             raise ValidationError('Cannot approve: User is banned.')
+        
+        # Check max books
+        active_count = Reservation.objects.filter(
+            user=instance.user, 
+            status__in=['approved', 'given']
+        ).exclude(pk=instance.pk).count()
+        
+        if active_count >= instance.user.max_allowed:
+            raise ValidationError(f'Cannot approve: User has reached the limit of {instance.user.max_allowed} books.')
+
+        # Check availability
+        # Note: If we are approving, we are about to reserve a copy.
+        # We must ensure there is a copy to reserve.
+        if instance.book.quantity <= 0:
             raise ValidationError('Cannot approve reservation: no copies available for this book.')
 
 
 @receiver(post_save, sender=Reservation)
 def reservation_post_save(sender, instance, created, **kwargs):
-    # Assign place for newly created reservations
-    if created:
+    # 1. Assign place for new PENDING reservations only
+    if created and instance.status == 'pending':
         max_place = (
-            Reservation.objects.filter(book=instance.book)
+            Reservation.objects.filter(book=instance.book, status='pending')
             .exclude(pk=instance.pk)
             .aggregate(m=Max('place'))
         )['m']
@@ -161,67 +172,135 @@ def reservation_post_save(sender, instance, created, **kwargs):
         if instance.place is None:
             instance.place = (max_place or 0) + 1
             Reservation.objects.filter(pk=instance.pk).update(place=instance.place)
-        else:
-            Reservation.objects.filter(book=instance.book, place__gte=instance.place).exclude(pk=instance.pk).update(place=F('place')+1)
+            # Refresh instance place
+            instance.place = (max_place or 0) + 1
 
-    # If status changed to returned (3) from something else, shift queue up
+    # 2. Handle Status Transitions
     prev_status = getattr(instance, '_pre_save_status', None)
     prev_place = getattr(instance, '_pre_save_place', None)
-    if prev_status != instance.status and instance.status == 3:
-        # use previous place (before return) to shift the queue
-        shift_from = prev_place if prev_place is not None else instance.place
-        if shift_from is not None:
-            Reservation.objects.filter(book=instance.book, place__gt=shift_from).update(place=F('place')-1)
-        # set returned reservation's place to 0 to mark it as returned
-        Reservation.objects.filter(pk=instance.pk).update(place=0)
-
-    # Handle quantity and availability changes when status transitions occur
-    # Use atomic updates to avoid race conditions
-    prev_status = getattr(instance, '_pre_save_status', None)
-    try:
-        with transaction.atomic():
-            book_qs = Kitob.objects.filter(pk=instance.book.pk)
-            # If reservation was approved now (transitioned to 2), decrement quantity
-            if prev_status != instance.status and instance.status == 2:
-                book_qs.update(quantity=F('quantity') - 1)
-                # Set reserved_from and reserved_until
-                now = timezone.now()
-                read_time = instance.book.read_time or 14  # default to 14 days if not set
-                Reservation.objects.filter(pk=instance.pk).update(
-                    reserved_from=now,
-                    reserved_until=now + timezone.timedelta(days=read_time)
-                )
-            # If reservation was previously approved and now returned (3) or deleted, increment quantity
-            if prev_status == 2 and instance.status == 3:
-                book_qs.update(quantity=F('quantity') + 1)
-            # Refresh book instance and set availability
-            book = Kitob.objects.select_for_update().get(pk=instance.book.pk)
-            # Ensure quantity never goes negative
-            if book.quantity < 0:
-                # Clamp to zero
-                book.quantity = 0
-            book.is_available = book.quantity > 0
-            book.save(update_fields=['quantity', 'is_available'])
-    except Kitob.DoesNotExist:
-        pass
-
-
-@receiver(post_delete, sender=Reservation)
-def reservation_post_delete(sender, instance, **kwargs):
-    if instance.place is not None:
-        Reservation.objects.filter(book=instance.book, place__gt=instance.place).update(place=F('place')-1)
-    # If a reservation that was approved is deleted, return the copy to inventory
-    try:
-        if instance.status == 2:
+    
+    if prev_status != instance.status:
+        now = timezone.now()
+        book_qs = Kitob.objects.filter(pk=instance.book.pk)
+        
+        try:
             with transaction.atomic():
-                Kitob.objects.filter(pk=instance.book.pk).update(quantity=F('quantity') + 1)
+                # APPROVED: pending -> approved
+                if instance.status == 'approved' and prev_status != 'approved':
+                    # Remove from Queue: If they were in the queue, remove them and shift others up
+                    if prev_place and prev_place > 0:
+                         Reservation.objects.filter(book=instance.book, status='pending', place__gt=prev_place).update(place=F('place') - 1)
+                         # instance place is cleared below
+                    
+                    # Clear own place as they are no longer "waiting"
+                    Reservation.objects.filter(pk=instance.pk).update(place=None)
+                    
+                    # Decrement quantity
+                    book_qs.update(quantity=F('quantity') - 1)
+                    
+                    # Set approved_at (24h window starts)
+                    Reservation.objects.filter(pk=instance.pk).update(approved_at=now)
+                
+                # GIVEN: approved -> given
+                elif instance.status == 'given' and prev_status == 'approved':
+                    # Set reading timers
+                    read_time = instance.book.read_time or 14
+                    Reservation.objects.filter(pk=instance.pk).update(
+                        reserved_from=now,
+                        reserved_until=now + timezone.timedelta(days=read_time)
+                    )
+                    # Note: Quantity was already decremented on approval.
+                
+                # RETURNED: given -> returned
+                elif instance.status == 'returned' and prev_status == 'given':
+                    # Increment quantity
+                    book_qs.update(quantity=F('quantity') + 1)
+                    # Set returned_at timestamp
+                    Reservation.objects.filter(pk=instance.pk).update(returned_at=now)
+                    # Place is already None/0 from approval step
+
+                # NOT RETURNED: given -> not_returned
+                # (No quantity change, book is still out)
+
+                # CANCELLATION/RESET (e.g. Approved -> Cancelled/Pending/Returned without being given)
+                # If we revert from Approved to something else (except Given), we must restore quantity.
+                elif prev_status == 'approved' and instance.status not in ['given', 'approved']:
+                     book_qs.update(quantity=F('quantity') + 1)
+
+                
+                # Refresh book availability status based on new quantity
                 book = Kitob.objects.select_for_update().get(pk=instance.book.pk)
                 if book.quantity < 0:
                     book.quantity = 0
                 book.is_available = book.quantity > 0
                 book.save(update_fields=['quantity', 'is_available'])
-    except Kitob.DoesNotExist:
-        pass
+
+        except Kitob.DoesNotExist:
+            pass
+
+    # 3. Queue Shifting (Clean up)
+    # Logic handled inside transition block (pending -> approved shifts queue).
+    pass
+
+    # 4. Auto-Approve Logic (For NEW pending request OR when book becomes available)
+    # Trigger: Created Pending OR Book Returned (Quantity became > 0)
+    
+    # We need to re-fetch book quantity because we might have just updated it
+    instance.book.refresh_from_db()
+
+    # We only auto-approve if there is stock available
+    if instance.book.quantity > 0:
+        # Check queue for who is eligible
+        # Criteria: Status pending, lowest place, valid user
+        candidates = Reservation.objects.filter(
+            book=instance.book,
+            status='pending',
+            place__gt=0  # Valid queue position
+        ).order_by('place')
+
+        for candidate in candidates:
+             # Refresh book quantity inside loop as we might have decremented it in previous iteration
+             instance.book.refresh_from_db()
+             if instance.book.quantity <= 0:
+                 break # No more books
+             
+             # Validation check
+             user = candidate.user
+             if user.is_banned:
+                 continue
+             
+             active_count = Reservation.objects.filter(
+                user=user, 
+                status__in=['approved', 'given']
+             ).count()
+             
+             if active_count >= user.max_allowed:
+                 continue
+             
+             # If Valid, Approve
+             # This save() will trigger post_save recursively:
+             # - Decrement quantity
+             # - Shift queue (remove this candidate from place 1, everyone else moves up)
+             # - Set approved_at
+             candidate.status = 'approved'
+             candidate.save()
+
+@receiver(post_delete, sender=Reservation)
+def reservation_post_delete(sender, instance, **kwargs):
+    # Shift queue if a pending reservation with a valid place is deleted
+    if instance.status == 'pending' and instance.place is not None and instance.place > 0:
+         Reservation.objects.filter(book=instance.book, status='pending', place__gt=instance.place).update(place=F('place')-1)
+
+    # If an APPROVED reservation is deleted, we must restore quantity
+    if instance.status == 'approved':
+        try:
+            with transaction.atomic():
+                Kitob.objects.filter(pk=instance.book.pk).update(quantity=F('quantity') + 1)
+                book = Kitob.objects.select_for_update().get(pk=instance.book.pk)
+                book.is_available = book.quantity > 0
+                book.save(update_fields=['quantity', 'is_available'])
+        except Kitob.DoesNotExist:
+            pass
 
 @receiver(post_save, sender=Rating)
 def set_avg_rating(sender,instance,**kwargs):

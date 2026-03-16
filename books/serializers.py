@@ -108,10 +108,19 @@ class ReservationSerializer(serializers.ModelSerializer):
     # Using StringRelatedField to show a human-readable representation of related objects.
     user = serializers.StringRelatedField(read_only=True)
     book = serializers.StringRelatedField(read_only=True)
+    author = serializers.SerializerMethodField()
+    img = serializers.ImageField(source='book.img', read_only=True)
+    first_name = serializers.CharField(source='user.first_name', read_only=True)
+    last_name = serializers.CharField(source='user.last_name', read_only=True)
+
+    def get_author(self, obj):
+        return ", ".join([str(author) for author in obj.book.author.all()])
 
     class Meta:
         model = Reservation
-        fields = ('id', 'user', 'book', 'status', 'place', 'c_at')
+        fields = ('id', 'user', 'book', 'author', 'img', 'first_name', 'last_name', 'status', 
+                  'place', 'c_at', 'reserved_from', 'reserved_until', 'approved_at', 'returned_at')
+                  
         # Make fields read-only if they should be set by the system, not the user directly.
         read_only_fields = ('status', 'c_at')
 

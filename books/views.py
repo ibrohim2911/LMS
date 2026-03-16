@@ -29,7 +29,7 @@ class KitobFilter(filters.FilterSet):
 
     # Exact matches and standard lookups
     published_date = filters.DateFilter(field_name='published_date')
-    author = filters.CharFilter(field_name='author', lookup_expr='icontains')
+    author = filters.AllValuesMultipleFilter(field_name='author')
     is_physical = filters.BooleanFilter(field_name='is_physical')
 
     # Custom behavior filters
@@ -99,9 +99,11 @@ class AuthorViewSet(viewsets.ModelViewSet):
 
 class BookmarkViewSet(viewsets.ModelViewSet):
     """API endpoint for bookmarks."""
-    queryset = Bookmark.objects.all()
     serializer_class = BookmarkSerializer
     permission_classes = [StudentPermission|LibrarianPermission|SuperAdminPermission, IsNotBanned]
+    def get_queryset(self):
+        user = self.request.user
+        return Bookmark.objects.filter(user=user).order_by('-c_at')
 class CategoryViewSet(viewsets.ModelViewSet):
     """API endpoint for categories."""
     queryset = Category.objects.all()
@@ -291,109 +293,68 @@ class ReservationViewSet(viewsets.ModelViewSet):
     @extend_schema(
         summary="Approve a reservation.",
         description="""
-        Approve a pending reservation for a book. This action decrements the book's quantity and marks the reservation as approved.
-        This endpoint is restricted to authenticated users.
+        Approve a pending reservation. 
+        Requires Librarian or Admin permissions.
         """,
-        responses={
-            200: OpenApiTypes.OBJECT,
-            400: OpenApiTypes.OBJECT,
-            404: OpenApiTypes.OBJECT,
-            409: OpenApiTypes.OBJECT,
-        }
+        responses={200: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT}
     )
-    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
+    @action(detail=True, methods=['post'], permission_classes=[LibrarianPermission|AdminPermission|SuperAdminPermission])
     def approve(self, request, pk=None):
-        """Approve a reservation and decrement book quantity."""
         reservation = self.get_object()
+        if reservation.status != 'pending':
+            return Response({'detail': 'Only pending reservations can be approved.'}, status=status.HTTP_400_BAD_REQUEST)
         
-        # Check if already approved
-        if reservation.status == 2:
-            return Response(
-                {'detail': 'Reservation is already approved.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Use atomic transaction to ensure consistency
         try:
-            with transaction.atomic():
-                book = Kitob.objects.select_for_update().get(pk=reservation.book.pk)
-                
-                # Validate availability
-                if book.quantity <= 0:
-                    return Response(
-                        {'detail': 'No copies available for this book.'},
-                        status=status.HTTP_409_CONFLICT
-                    )
-                
-                # Decrement quantity and update availability
-                book.quantity -= 1
-                book.is_available = book.quantity > 0
-                book.save(update_fields=['quantity', 'is_available'])
-                
-                # Update reservation status
-                reservation.status = 2
-                reservation.save()
-        except Kitob.DoesNotExist:
-            return Response(
-                {'detail': 'Book not found.'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            reservation.status = 'approved'
+            reservation.save()
+            return Response({'detail': 'Reservation approved successfully.'})
+        except Exception as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @extend_schema(
+        summary="Mark book as picked up (Given).",
+        description="""
+        Mark an approved reservation as given (user picked up the book).
+        Starts the loan period.
+        """,
+        responses={200: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT}
+    )
+    @action(detail=True, methods=['post'], permission_classes=[LibrarianPermission|AdminPermission|SuperAdminPermission])
+    def give_book(self, request, pk=None):
+        reservation = self.get_object()
+        if reservation.status != 'approved':
+             return Response({'detail': 'Reservation must be approved first.'}, status=status.HTTP_400_BAD_REQUEST)
         
-        return Response(
-            {'detail': 'Reservation approved successfully.'},
-            status=status.HTTP_200_OK
-        )
+        try:
+            reservation.status = 'given'
+            reservation.save()
+            return Response({'detail': 'Book given successfully.'}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @extend_schema(
         summary="Mark a book as returned.",
         description="""
-        Mark a book as returned. This action increments the book's quantity and updates the reservation status.
-        This endpoint is restricted to authenticated users.
+        Mark a book as returned.
         """,
-        responses={
-            200: OpenApiTypes.OBJECT,
-            400: OpenApiTypes.OBJECT,
-            404: OpenApiTypes.OBJECT,
-        }
+        responses={200: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT}
     )
-    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
+    @action(detail=True, methods=['post'], permission_classes=[LibrarianPermission|AdminPermission|SuperAdminPermission])
     def return_book(self, request, pk=None):
-        """Mark a reservation as returned and increment book quantity."""
         reservation = self.get_object()
         
-        # Check if reservation is currently approved
-        if reservation.status != 2:
+        if reservation.status != 'given':
             return Response(
-                {'detail': 'Only approved reservations can be marked as returned.'},
+                {'detail': 'Only given books can be marked as returned.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Use atomic transaction to ensure consistency
         try:
-            with transaction.atomic():
-                # Increment quantity
-                Kitob.objects.filter(pk=reservation.book.pk).update(
-                    quantity=F('quantity') + 1
-                )
-                
-                # Update book availability
-                book = Kitob.objects.select_for_update().get(pk=reservation.book.pk)
-                book.is_available = book.quantity > 0
-                book.save(update_fields=['is_available'])
-                
-                # Update reservation status
-                reservation.status = 3
-                reservation.save()
-        except Kitob.DoesNotExist:
-            return Response(
-                {'detail': 'Book not found.'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-        
-        return Response(
-            {'detail': 'Book marked as returned successfully.'},
-            status=status.HTTP_200_OK
-        )
+            reservation.status = 'returned'
+            reservation.save()
+            return Response({'detail': 'Book returned successfully.'}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 @extend_schema(

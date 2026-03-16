@@ -54,9 +54,9 @@ class profileStats(APIView):
             reservations = reservations.filter(reservation_date__lte=end_date)
 
         total_reservations = reservations.count()
-        active_reservations = reservations.filter(status=2).count()
-        pending_reservations = reservations.filter(status=1).count()
-        returned_reservations = reservations.filter(status=3).count()
+        active_reservations = reservations.filter(status__in=['approved', 'given']).count()
+        pending_reservations = reservations.filter(status='pending').count()
+        returned_reservations = reservations.filter(status='returned').count()
         bookmarks = Bookmark.objects.filter(user=user).count()
         ratings = Rating.objects.filter(user=user).count()
         stats = {
