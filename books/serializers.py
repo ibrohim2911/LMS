@@ -48,6 +48,8 @@ class RatingSerializer(serializers.ModelSerializer):
 
 class KitobSerializer(serializers.ModelSerializer):
     # For read operations, show the full nested object.
+    has_audio = serializers.SerializerMethodField()
+    has_pdf = serializers.SerializerMethodField()
     category = CategorySerializer(read_only=True)
     tags = TagSerializer(many=True, read_only=True)
     ratings = RatingSerializer(many=True, read_only=True)
@@ -77,10 +79,25 @@ class KitobSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'name', 'description', 'author', 'isbn', 'rating', 'is_available','is_frequent', 
             'quantity','img', 'c_at', 'u_at', 'published_date', 'pdf', 'audio', 'is_physical','pages',
-            'category', 'tags','subcategory',  'ratings', 'average_rating',  # Read-only nested fields
+            'category', 'tags','subcategory',  'ratings', 'average_rating','has_audio', 'has_pdf',  # Read-only nested fields
             'category_id', 'tag_ids', 'subcategory_id', 'author_ids'  # Write-only ID fields
         )
+    def get_has_audio(self, obj):
+        return bool(obj.audio)
 
+    def get_has_pdf(self, obj):
+        return bool(obj.pdf)
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        request = self.context.get('request')
+
+        # If the user is NOT logged in, we "mask" the actual file URLs
+        if request and not request.user.is_authenticated:
+            representation['audio'] = None
+            representation['pdf'] = None
+            
+        return representation
 
 
 

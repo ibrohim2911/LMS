@@ -3,6 +3,9 @@ from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from users.permissions import (
     GuestPermission, StudentPermission, TeacherPermission, LibrarianPermission, AdminPermission, SuperAdminPermission, IsNotBanned
 )
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters as drf_filters
+from django_filters import rest_framework as filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
@@ -11,22 +14,89 @@ from django.db.models import F
 from drf_spectacular.utils import extend_schema
 from drf_spectacular.openapi import OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
-from .models import Category, Tag, Kitob, Comment, Reservation, Journals, Rating, Bookmark
+from .models import Category, Tag, Kitob, Comment, Reservation, Journals, Rating, Bookmark,Author
 from .serializers import (
     CategorySerializer, TagSerializer, KitobSerializer, CommentSerializer,
-    ReservationSerializer, JournalsSerializer, RatingSerializer, BookmarkSerializer
+    ReservationSerializer, JournalsSerializer, RatingSerializer, BookmarkSerializer, AuthorSerializer
 )
 from .paginator import KitobPagination, ReservationPagination
-@extend_schema(
-    description="API endpoint for categories. Supports filtering and CRUD operations.",
-    methods=["GET"],
-    summary="Retrieve a list of categories.",
-    tags=["Categories"],
-    responses={
-        200: CategorySerializer(many=True),
-        401: OpenApiTypes.OBJECT,
-    }
-)
+
+class KitobFilter(filters.FilterSet):
+    # AllValuesMultipleFilter automatically handles lists like ?category=1&category=2 
+    # and performs an 'IN' lookup, fixing potential issues in the original code.
+    category = filters.AllValuesMultipleFilter(field_name='category__id')
+    tags = filters.AllValuesMultipleFilter(field_name='tags__id')
+
+    # Exact matches and standard lookups
+    published_date = filters.DateFilter(field_name='published_date')
+    author = filters.CharFilter(field_name='author', lookup_expr='icontains')
+    is_physical = filters.BooleanFilter(field_name='is_physical')
+
+    # Custom behavior filters
+    time_range = filters.CharFilter(method='filter_time_range')
+    is_audio = filters.BooleanFilter(method='filter_is_audio')
+    is_pdf = filters.BooleanFilter(method='filter_is_pdf')
+
+    # Map your custom sorting strings to actual model fields
+    SORT_CHOICES = (
+        ('latest', 'Latest'),
+        ('oldest', 'Oldest'),
+        ('rating-high', 'Rating High'),
+        ('rating-low', 'Rating Low'),
+        ('name-high', 'Name High'),
+        ('name-low', 'Name Low'),
+        ('published-date-high', 'Published Date High'),
+        ('published-date-low', 'Published Date Low'),
+    )
+    sort = filters.ChoiceFilter(choices=SORT_CHOICES, method='filter_sort')
+
+    class Meta:
+        model = Kitob
+        fields = ['category', 'tags', 'published_date', 'author', 'is_physical']
+
+    def filter_time_range(self, queryset, name, value):
+        if value and ',' in value:
+            try:
+                start_date, end_date = value.split(',')
+                return queryset.filter(read_time__range=[start_date.strip(), end_date.strip()])
+            except ValueError:
+                pass # Fails gracefully if format is incorrect
+        return queryset
+
+    def filter_is_audio(self, queryset, name, value):
+        if value is True:
+            return queryset.filter(audio__isnull=False)
+        elif value is False:
+            return queryset.filter(audio__isnull=True)
+        return queryset
+
+    def filter_is_pdf(self, queryset, name, value):
+        if value is True:
+            return queryset.filter(pdf__isnull=False)
+        elif value is False:
+            return queryset.filter(pdf__isnull=True)
+        return queryset
+
+    def filter_sort(self, queryset, name, value):
+        sort_mapping = {
+            'latest': '-c_at',
+            'oldest': 'c_at',
+            'rating-high': '-rating',
+            'rating-low': 'rating',
+            'name-high': 'name',
+            'name-low': '-name',
+            'published-date-high': '-published_date',
+            'published-date-low': 'published_date',
+        }
+        if value in sort_mapping:
+            return queryset.order_by(sort_mapping[value])
+        return queryset
+class AuthorViewSet(viewsets.ModelViewSet):
+    """API endpoint for authors."""
+    queryset = Author.objects.all()
+    serializer_class = AuthorSerializer
+    permission_classes = [AllowAny]
+
 class BookmarkViewSet(viewsets.ModelViewSet):
     """API endpoint for bookmarks."""
     queryset = Bookmark.objects.all()
@@ -42,16 +112,6 @@ class CategoryViewSet(viewsets.ModelViewSet):
         else:
             permission_classes = [LibrarianPermission|SuperAdminPermission]
         return [permission() for permission in permission_classes]
-    @extend_schema(
-        description="Retrieve a single category by its ID.",
-        summary="Retrieve a category.",
-        tags=["Categories"],
-        responses={
-            200: CategorySerializer(),
-            401: OpenApiTypes.OBJECT,
-            404: OpenApiTypes.OBJECT,
-        }
-    )
     def retrieve(self, request, *args, **kwargs):
         return super().retrieve(request, *args, **kwargs)
 
@@ -95,9 +155,12 @@ class TagViewSet(viewsets.ModelViewSet):
 )
 class KitobViewSet(viewsets.ModelViewSet):
     """API endpoint for books (Kitob)."""
-    queryset = Kitob.objects.all()
-    serializer_class = KitobSerializer
+    queryset = Kitob.objects.filter(visible=True)
+    serializer_class = KitobSerializer  
     pagination_class = KitobPagination
+    filter_backends = [DjangoFilterBackend, drf_filters.SearchFilter]
+    filterset_class = KitobFilter
+    search_fields = ['name', 'author__name']
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
             permission_classes = [GuestPermission|StudentPermission|TeacherPermission|LibrarianPermission|SuperAdminPermission]
@@ -105,81 +168,6 @@ class KitobViewSet(viewsets.ModelViewSet):
             permission_classes = [LibrarianPermission|SuperAdminPermission]
         return [permission() for permission in permission_classes]
 
-    @extend_schema(
-        parameters=[
-            OpenApiParameter(
-                name='category',
-                description='Filter books by category ID',
-                required=False,
-                type=OpenApiTypes.INT,
-                location=OpenApiParameter.QUERY,
-            ),
-            OpenApiParameter(
-                name='sort',
-                description='sort books based on criteria (latest, oldest, rating-high, rating-low, name-high, name-low, published-date-high, published-date-low)',
-                required=False,
-                type=OpenApiTypes.STR,
-                location=OpenApiParameter.QUERY,
-            ),
-            OpenApiParameter(
-                name='tags',
-                description='Filter books by tag IDs (comma-separated or multiple parameters)',
-                required=False,
-                type=OpenApiTypes.INT,
-                many=True,
-                location=OpenApiParameter.QUERY,
-            ),
-            OpenApiParameter(
-                name='time_range',
-                description='Filter books by time range (format: start_date,end_date)',
-                required=False,
-                type=OpenApiTypes.STR,
-                location=OpenApiParameter.QUERY,
-            ),
-            OpenApiParameter(
-                name='published_date',
-                description='Filter books by published date (format: YYYY-MM-DD)',
-                required=False,
-                type=OpenApiTypes.STR,
-                location=OpenApiParameter.QUERY,
-            ),
-            OpenApiParameter(
-                name='author',
-                description='Filter books by author name (partial match)',
-                required=False,
-                type=OpenApiTypes.STR,
-                location=OpenApiParameter.QUERY,
-            ),
-            OpenApiParameter(
-                name='search',
-                description='Search for books by name or author (partial match)',
-                required=False,
-                type=OpenApiTypes.STR,
-                location=OpenApiParameter.QUERY,
-            ),
-            OpenApiParameter(
-                name='is_audio',
-                description='Filter books that have an audio version available',
-                required=False,
-                type=OpenApiTypes.BOOL,
-                location=OpenApiParameter.QUERY,
-            ),
-            OpenApiParameter(
-                name='is_pdf',
-                description='Filter books that have a PDF version available',
-                required=False,
-                type=OpenApiTypes.BOOL,
-                location=OpenApiParameter.QUERY,
-            ),
-            OpenApiParameter(
-                name='is_physical',
-                description='Filter books that are physical copies',
-                required=False,
-                type=OpenApiTypes.BOOL,
-                location=OpenApiParameter.QUERY,
-            ),
-        ]
-    )
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
 
@@ -197,66 +185,12 @@ class KitobViewSet(viewsets.ModelViewSet):
     def retrieve(self, request, *args, **kwargs):
         return super().retrieve(request, *args, **kwargs)
 
-    def get_queryset(self):
-        category = self.request.query_params.getlist('category', None)
-        sort = self.request.query_params.get('sort', None)
-        tags = self.request.query_params.getlist('tags', None)
-        time_range = self.request.query_params.get('time_range', None)
-        published_date = self.request.query_params.get('published_date', None)
-        author = self.request.query_params.get('author', None)
-        search = self.request.query_params.get('search', None)
-        is_audio = self.request.query_params.get('is_audio', None)
-        is_pdf = self.request.query_params.get('is_pdf', None)
-        is_physical = self.request.query_params.get('is_physical', None)
-        if search:
-            queryset = Kitob.objects.filter(visible=True, name__icontains=search) | Kitob.objects.filter(visible=True, author__icontains=search)
-        else:
-            queryset = Kitob.objects.filter(visible=True)
-        if category:
-            queryset = queryset.filter(category__id=category)
-        if tags:
-            queryset = queryset.filter(tags__id__in=tags)
-        if time_range:
-            start_date, end_date = time_range.split(',')
-            queryset = queryset.filter(read_time__range=[start_date, end_date])
-        if published_date:
-            queryset = queryset.filter(published_date=published_date)
-        if author:
-            queryset = queryset.filter(author__icontains=author)
-        if is_audio:
-            queryset = queryset.filter(audio__isnull=False)
-        if is_pdf:
-            queryset = queryset.filter(pdf__isnull=False)
-        if is_physical:
-            queryset = queryset.filter(is_physical=True)
-        if sort == 'latest':
-            queryset = queryset.order_by('-c_at')
-        elif sort == 'oldest':
-            queryset = queryset.order_by('c_at')
-        elif sort == 'rating-high':
-            queryset = queryset.order_by('-rating')
-        elif sort == 'rating-low':
-            queryset = queryset.order_by('rating')
-        elif sort =='name-high':
-            queryset = queryset.order_by('name')
-        elif sort == 'name-low':
-            queryset = queryset.order_by('-name')
-        elif sort == 'published-date-high':
-            queryset = queryset.order_by('-published_date')
-        elif sort == 'published-date-low':
-            queryset = queryset.order_by('published_date')
-        return queryset
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
             permission_classes = [AllowAny]
         else:
             permission_classes = [IsAuthenticated]
         return [permission() for permission in permission_classes]
-@extend_schema(
-    description="API endpoint for ebooks. Supports filtering and CRUD operations.",
-    summary="Manage ebooks.",
-    tags=["Ebooks"],
-)
 
 class JournalsViewSet(viewsets.ModelViewSet):
     """API endpoint for journals."""
@@ -298,6 +232,14 @@ class JournalsViewSet(viewsets.ModelViewSet):
             permission_classes = [IsAuthenticated]
         return [permission() for permission in permission_classes]
 
+class ReservationFilter(filters.FilterSet):
+    # Exact matches for IDs and Status
+    user_id = filters.NumberFilter(field_name='user_id')
+    status = filters.CharFilter(field_name='status')
+
+    class Meta:
+        model = Reservation
+        fields = ['user_id', 'status']
 @extend_schema(
     description="API endpoint for reservations. Supports creating, managing, and tracking book reservations.",
     summary="Manage reservations.",
@@ -306,22 +248,18 @@ class JournalsViewSet(viewsets.ModelViewSet):
 class ReservationViewSet(viewsets.ModelViewSet):
     """API endpoint for reservations."""
     serializer_class = ReservationSerializer
+    queryset = Reservation.objects.all()
     pagination_class = ReservationPagination
-    def get_queryset(self):
-        queryset = Reservation.objects.all()
-        user_id = self.request.query_params.get('user_id', None)
-        search = self.request.query_params.get('search', None)
-        status = self.request.query_params.get('status', None)
-        sort = self.request.query_params.get('sort', None)
-        if user_id:
-            queryset = queryset.filter(user_id=user_id)
-        if search:
-            queryset = queryset.filter(book__name__icontains=search) | queryset.filter(book__author__icontains=search)
-        if status:
-            queryset = queryset.filter(status=status)
-        if sort:
-            queryset = queryset.order_by(sort)
-        return queryset
+    filter_backends = [
+        DjangoFilterBackend, 
+        drf_filters.SearchFilter, 
+        drf_filters.OrderingFilter
+    ]
+    filterset_class = ReservationFilter
+    search_fields = ['book__name', 'book__author__name']
+    ordering_fields = '__all__'
+    ordering = ['-id']
+    ordering_param = 'sort'
     def get_permissions(self):
         if self.action in ['list', 'retrieve', 'create', 'update', 'partial_update', 'destroy']:
             permission_classes = [StudentPermission|LibrarianPermission|SuperAdminPermission]

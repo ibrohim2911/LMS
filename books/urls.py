@@ -2,7 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     CategoryViewSet, CommentViewSet, TagViewSet, KitobViewSet, JournalsViewSet, 
-    ReservationViewSet, RatingViewSet, BookmarkViewSet
+    ReservationViewSet, RatingViewSet, BookmarkViewSet, AuthorViewSet
 )
 from .api_stats import profileStats, mainPageStats
 router = DefaultRouter()
@@ -13,7 +13,7 @@ router.register(r'journals', JournalsViewSet, basename='journals')
 router.register(r'reservations', ReservationViewSet, basename='reservation')
 router.register(r'ratings', RatingViewSet, basename='rating')
 router.register(r'bookmarks', BookmarkViewSet, basename='bookmark')
-
+router.register(r'authors', AuthorViewSet, basename='author')
 comment = CommentViewSet.as_view({
     'get': 'list',
     'post': 'create',

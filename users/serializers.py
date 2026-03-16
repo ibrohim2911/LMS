@@ -40,3 +40,11 @@ class UserSerializer(serializers.ModelSerializer):
             user.set_password(password)
             user.save()
         return user
+
+
+class LogoutSerializer(serializers.Serializer):
+    """Serializer for logout requests.
+
+    Expects the refresh token that should be removed from the active-token list.
+    """
+    refresh = serializers.CharField(required=True, help_text="The refresh token to remove from active tokens")

@@ -26,3 +26,15 @@ class User(AbstractUser):
             return False
         else:
             return timezone.now() < self.ban_expires_at
+
+
+class ActiveRefreshToken(models.Model):
+    """Stores active refresh tokens for logout / refresh validation."""
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    token = models.TextField(unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Active Refresh Token"
+        verbose_name_plural = "Active Refresh Tokens"

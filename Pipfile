@@ -11,6 +11,7 @@ djangorestframework-simplejwt = "*"
 django = {extras = ["argon2"], version = "*"}
 pillow = "*"
 django-cors-headers = "*"
+django-filter = "*"
 
 [dev-packages]
 
