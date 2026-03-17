@@ -1,8 +1,9 @@
 from rest_framework.response import Response
 from rest_framework import viewsets
+from rest_framework.decorators import action
 from rest_framework.views import APIView
-from .models import User, ActiveRefreshToken
-from .serializers import UserSerializer, LogoutSerializer
+from .models import User, ActiveRefreshToken, Notification
+from .serializers import UserSerializer, LogoutSerializer, NotificationSerializer
 from rest_framework.permissions import IsAuthenticated
 from users.permissions import AdminPermission, SuperAdminPermission
 from drf_spectacular.utils import extend_schema
@@ -20,6 +21,27 @@ from rest_framework_simplejwt.tokens import RefreshToken, UntypedToken
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework import status
 
+class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = NotificationSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        # Users only see their own notifications
+        return Notification.objects.filter(user=self.request.user)
+
+    # Custom action to mark a specific notification as read
+    @action(detail=True, methods=['post'])
+    def mark_read(self, request, pk=None):
+        notification = self.get_object()
+        notification.is_read = True
+        notification.save()
+        return Response({'status': 'marked as read'})
+
+    # Custom action to mark ALL as read
+    @action(detail=False, methods=['post'])
+    def mark_all_read(self, request):
+        self.get_queryset().update(is_read=True)
+        return Response({'status': 'all marked as read'})
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):

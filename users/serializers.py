@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User
+from .models import User, Notification
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -48,3 +48,10 @@ class LogoutSerializer(serializers.Serializer):
     Expects the refresh token that should be removed from the active-token list.
     """
     refresh = serializers.CharField(required=True, help_text="The refresh token to remove from active tokens")
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    """Serializer for the Notification model."""
+    class Meta:
+        model = Notification
+        fields = '__all__'
