@@ -122,7 +122,7 @@ class ReservationSerializer(serializers.ModelSerializer):
                   'place', 'c_at', 'reserved_from', 'reserved_until', 'approved_at', 'returned_at')
                   
         # Make fields read-only if they should be set by the system, not the user directly.
-        read_only_fields = ('status', 'c_at')
+        read_only_fields = ('user','author', 'img','place', 'c_at', 'reserved_from', 'reserved_until', 'approved_at', 'returned_at', 'first_name', 'last_name', 'status', 'c_at')
 
 class CommentSerializer(serializers.ModelSerializer):
     """Serializer for the Comment model."""

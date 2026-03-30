@@ -268,7 +268,22 @@ class ReservationViewSet(viewsets.ModelViewSet):
         else:
             permission_classes = [SuperAdminPermission]
         return [permission() for permission in permission_classes]
-
+    @extend_schema(
+        summary="create reservation for students.",
+        description="Create a new reservation for a book. This endpoint is restricted to authenticated students.",
+    )
+    @action(detail=False, methods=['post'], url_path='create_for_student')
+    def create_for_student(self, request, *args, **kwargs):
+        book_id = request.data.get('book_id') or request.data.get('book')
+        if not book_id:
+            return Response({"error": "book_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(user=request.user, book_id=book_id)
+        
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
     @extend_schema(
         summary="Retrieve a list of reservations.",
         description="Get a paginated list of reservations. This endpoint is restricted to authenticated users.",
@@ -421,7 +436,9 @@ class CommentViewSet(viewsets.ModelViewSet):
         return self.queryset.order_by('c_at')
 
     def get_permissions(self):
-        if self.action in ['list', 'retrieve', 'create', 'update', 'partial_update', 'destroy']:
+        if self.action in ['list', 'retrieve']:
+            permission_classes = [GuestPermission|StudentPermission|TeacherPermission|LibrarianPermission|SuperAdminPermission]
+        elif self.action in ['create', 'update', 'partial_update', 'destroy']:
             permission_classes = [StudentPermission|SuperAdminPermission]
         else:
             permission_classes = [SuperAdminPermission]
