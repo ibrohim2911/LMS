@@ -1,6 +1,6 @@
 from django.contrib import admin
-from .models import Category, Tag, Kitob, Comment, Reservation, Rating, Author
-
+from .models import Category, Tag, Kitob, Comment, Reservation, Rating, Author,subCategory
+admin.site.register(subCategory)
 admin.site.register(Category)
 admin.site.register(Tag)
 admin.site.register(Kitob)

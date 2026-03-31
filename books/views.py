@@ -14,13 +14,22 @@ from django.db.models import F
 from drf_spectacular.utils import extend_schema
 from drf_spectacular.openapi import OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
-from .models import Category, Tag, Kitob, Comment, Reservation, Journals, Rating, Bookmark,Author
+from .models import Category, Tag, Kitob, Comment, Reservation, Journals, Rating, Bookmark,Author, subCategory
 from .serializers import (
-    CategorySerializer, TagSerializer, KitobSerializer, CommentSerializer,
+    CategorySerializer, TagSerializer, KitobSerializer, CommentSerializer,subCategorySerializer,
     ReservationSerializer, JournalsSerializer, RatingSerializer, BookmarkSerializer, AuthorSerializer
 )
 from .paginator import KitobPagination, ReservationPagination
-
+class SubCategoryViewSet(viewsets.ModelViewSet):
+    """API endpoint for subcategories."""
+    queryset = subCategory.objects.all()
+    serializer_class = subCategorySerializer
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            permission_classes = [GuestPermission|StudentPermission|TeacherPermission|LibrarianPermission|SuperAdminPermission]
+        else:
+            permission_classes = [LibrarianPermission|SuperAdminPermission]
+        return [permission() for permission in permission_classes]
 class KitobFilter(filters.FilterSet):
     # AllValuesMultipleFilter automatically handles lists like ?category=1&category=2 
     # and performs an 'IN' lookup, fixing potential issues in the original code.

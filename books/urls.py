@@ -2,11 +2,12 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     CategoryViewSet, CommentViewSet, TagViewSet, KitobViewSet, JournalsViewSet, 
-    ReservationViewSet, RatingViewSet, BookmarkViewSet, AuthorViewSet
+    ReservationViewSet, RatingViewSet, BookmarkViewSet, AuthorViewSet, SubCategoryViewSet
 )
 from .api_stats import profileStats, mainPageStats, bookdetailStats
 router = DefaultRouter()
 router.register(r'categories', CategoryViewSet, basename='category')
+router.register(r'subcategories', SubCategoryViewSet, basename='subcategory')
 router.register(r'tags', TagViewSet, basename='tag')
 router.register(r'kitob', KitobViewSet, basename='kitob')
 router.register(r'journals', JournalsViewSet, basename='journals')
