@@ -13,7 +13,54 @@ from drf_spectacular.types import OpenApiTypes
 from .models import Kitob, Reservation, Bookmark, Rating, Category, subCategory
 
 User = get_user_model()
+class bookdetailStats(APIView):
+    """
+    API endpoint to get statistics for a specific book.
+    """
+    permission_classes = [AllowAny]  # Allow any user to access this endpoint
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(name='book_id', type=OpenApiTypes.INT, description='ID of the book to get stats for'),
+            OpenApiParameter(name='user_id', type=OpenApiTypes.INT, description='ID of the user to get their rating for the book'),
+        ],
+        
+        responses={200: 'A JSON object containing the book statistics.'},
+        description="Get statistics for a specific book, including total reservations, average rating, and availability status."
+    )
+    def get(self, request):
+        book_id = request.query_params.get('book_id')
+        user_id = request.query_params.get('user_id')
+        if not book_id:
+            return Response({'error': 'book_id parameter is required.'}, status=400)
+        if not user_id:
+            user_id = request.user.id if request.user.is_authenticated else None
+        try:
+            book = Kitob.objects.get(id=book_id)
+        except Kitob.DoesNotExist:
+            return Response({'error': 'Book not found.'}, status=404)
+
+        total_reservations = Reservation.objects.filter(book=book).count()
+        total_ratings = Rating.objects.filter(book=book).count()
+        star1 = Rating.objects.filter(book=book, score=1).count()
+        star2 = Rating.objects.filter(book=book, score=2).count()
+        star3 = Rating.objects.filter(book=book, score=3).count()
+        star4 = Rating.objects.filter(book=book, score=4).count()
+        star5 = Rating.objects.filter(book=book, score=5).count()
+        self_score = Rating.objects.filter(book=book, user_id=user_id).first()
+        stats = {
+            'total_reservations': total_reservations,
+            'total_ratings': total_ratings,
+            'star1': star1,
+            'star2': star2,
+            'star3': star3,
+            'star4': star4,
+            'star5': star5,
+            'self_score': self_score.score if self_score else None,
+
+        }
+
+        return Response(stats)
 class profileStats(APIView):
     """
     API endpoint to get statistics for a user's profile.

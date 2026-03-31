@@ -2,7 +2,8 @@ from .models import Reservation
 from django.utils import timezone
 from celery import shared_task
 from datetime import timedelta
-from users.task import send_notification
+from users.tasks import send_notification
+from users.models import Notification
 
 @shared_task
 def check_reservation_status():
@@ -39,11 +40,21 @@ def check_reservation_status():
     )
     
     for reservation in warning_reservations:
-        send_notification.delay(
-            reservation.user.id,
-            f"The book '{reservation.book.name}' is due tomorrow. Please return it on time.",
-            "Return Reminder"
-        )
+        message = f"The book '{reservation.book.name}' is due tomorrow. Please return it on time."
+        title = "Return Reminder"
+        
+        # Check if notification already sent in the last 24 hours
+        if not Notification.objects.filter(
+            user=reservation.user,
+            title=title,
+            message=message,
+            created_at__gte=now - timedelta(days=1)
+        ).exists():
+            send_notification.delay(
+                reservation.user.id, 
+                message, 
+                title
+            )
         
     # 3. Handle Expired Approvals (Approved -> Cancelled/Deleted)
     # If a user doesn't pick up the book within 24 hours of approval.

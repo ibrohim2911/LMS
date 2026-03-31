@@ -187,6 +187,54 @@ class KitobViewSet(viewsets.ModelViewSet):
     def retrieve(self, request, *args, **kwargs):
         return super().retrieve(request, *args, **kwargs)
 
+    @extend_schema(
+        summary="Create rating and comment.",
+        description="Creates a comment and rating together. If the user already rated the book, the rating is updated.",
+        request=OpenApiTypes.OBJECT,
+        responses={200: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT}
+    )
+    @action(detail=True, methods=['post'], permission_classes=[StudentPermission|SuperAdminPermission])
+    def rate_and_comment(self, request, pk=None):
+        book = self.get_object()
+        user = request.user
+        
+        rating_score = request.data.get('score')
+        comment_content = request.data.get('content')
+        
+        if not rating_score and not comment_content:
+            return Response({'detail': 'Either score or content is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            with transaction.atomic():
+                comment = None
+                if comment_content:
+                    comment = Comment.objects.create(
+                        user=user, book=book, content=comment_content
+                    )
+                
+                if rating_score:
+                    try:
+                        score = int(rating_score)
+                        if score < 1 or score > 5:
+                            return Response({'detail': 'Score must be between 1 and 5.'}, status=status.HTTP_400_BAD_REQUEST)
+                    except ValueError:
+                        return Response({'detail': 'Invalid score.'}, status=status.HTTP_400_BAD_REQUEST)
+
+                    rating, created = Rating.objects.update_or_create(
+                        user=user, book=book,
+                        defaults={'score': score}
+                    )
+                    
+                    if comment:
+                        rating.comment = comment
+                        rating.save()
+                        comment.rating = rating
+                        comment.save()
+                        
+            return Response({'detail': 'Rating and comment saved successfully.'}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
             permission_classes = [AllowAny]
@@ -272,6 +320,18 @@ class ReservationViewSet(viewsets.ModelViewSet):
         summary="create reservation for students.",
         description="Create a new reservation for a book. This endpoint is restricted to authenticated students.",
     )
+    @action(detail=False, methods=['patch'], url_path='update_status/(?P<pk>[^/.]+)')
+    def cancel_for_student(self, request, pk=None):
+        reservation = self.get_object()
+        if reservation.user != request.user:
+            return Response({"error": "You can only cancel your own reservations."}, status=status.HTTP_403_FORBIDDEN)
+        
+        if reservation.status != 'pending':
+            return Response({"error": "Only pending reservations can be cancelled."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        reservation.status = 'cancelled'
+        reservation.save()
+        return Response({"detail": "Reservation cancelled successfully."}, status=status.HTTP_200_OK)
     @action(detail=False, methods=['post'], url_path='create_for_student')
     def create_for_student(self, request, *args, **kwargs):
         book_id = request.data.get('book_id') or request.data.get('book')
@@ -443,4 +503,8 @@ class CommentViewSet(viewsets.ModelViewSet):
         else:
             permission_classes = [SuperAdminPermission]
         return [permission() for permission in permission_classes]
+
+    def perform_create(self, serializer):
+        book_id = self.kwargs.get('kitob_pk')
+        serializer.save(user=self.request.user, book_id=book_id)
     

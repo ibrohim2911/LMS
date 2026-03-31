@@ -179,8 +179,8 @@ CELERY_TASK_SERIALIZER = 'json'
 
 CELERY_BEAT_SCHEDULE = {
     'check_reservation_status_every_10_min': {
-        'task': 'books.task.check_reservation_status',
-        'schedule': crontab(minute='*/10'),
+        'task': 'books.tasks.check_reservation_status',
+        'schedule': crontab(minute='*/1'),
     },
 }
 

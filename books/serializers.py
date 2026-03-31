@@ -8,7 +8,7 @@ class CategorySerializer(serializers.ModelSerializer):
     """Serializer for the Category model."""
     class Meta:
         model = Category
-        fields = ('id', 'name')
+        fields = ('id', 'name', 'icon')
 
 
 class TagSerializer(serializers.ModelSerializer):
@@ -54,6 +54,7 @@ class KitobSerializer(serializers.ModelSerializer):
     tags = TagSerializer(many=True, read_only=True)
     ratings = RatingSerializer(many=True, read_only=True)
     average_rating = serializers.SerializerMethodField(read_only=True)
+    reservation_status = serializers.SerializerMethodField(read_only=True)
     subcategory = subCategorySerializer(read_only=True)
     author = AuthorSerializer(many=True, read_only=True)
     # For write operations (create/update), accept the ID for the foreign key/many-to-many fields.
@@ -73,13 +74,21 @@ class KitobSerializer(serializers.ModelSerializer):
     def get_average_rating(self, obj):
         """Calculate and return the average rating for the book."""
         return obj.get_average_rating()
-
+    def get_reservation_status(self, obj):
+        """Return the reservation status of the book for the requesting user"""
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            user = request.user
+            reservation = Reservation.objects.filter(book=obj, user=user).first()
+            if reservation:
+                return reservation.status
+        return False
     class Meta:
         model = Kitob
         fields = (
             'id', 'name', 'description', 'author', 'isbn', 'rating', 'is_available','is_frequent', 
             'quantity','img', 'c_at', 'u_at', 'published_date', 'pdf', 'audio', 'is_physical','pages',
-            'category', 'tags','subcategory',  'ratings', 'average_rating','has_audio', 'has_pdf',  # Read-only nested fields
+            'category', 'tags','subcategory',  'ratings', 'average_rating','has_audio', 'has_pdf','reservation_status',  # Read-only nested fields
             'category_id', 'tag_ids', 'subcategory_id', 'author_ids'  # Write-only ID fields
         )
     def get_has_audio(self, obj):
@@ -128,6 +137,7 @@ class CommentSerializer(serializers.ModelSerializer):
     """Serializer for the Comment model."""
     user  = UserSerializer(read_only=True)
     book = KitobSerializer(read_only=True)
+    rating_score = serializers.IntegerField(source='rating.score', read_only=True)
     class Meta:
         model = Comment
         fields = '__all__'

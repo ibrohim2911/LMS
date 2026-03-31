@@ -4,7 +4,7 @@ from .views import (
     CategoryViewSet, CommentViewSet, TagViewSet, KitobViewSet, JournalsViewSet, 
     ReservationViewSet, RatingViewSet, BookmarkViewSet, AuthorViewSet
 )
-from .api_stats import profileStats, mainPageStats
+from .api_stats import profileStats, mainPageStats, bookdetailStats
 router = DefaultRouter()
 router.register(r'categories', CategoryViewSet, basename='category')
 router.register(r'tags', TagViewSet, basename='tag')
@@ -25,4 +25,6 @@ urlpatterns = [
     path('kitob/<int:kitob_pk>/comments/<int:pk>/', CommentViewSet.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'partial_update', 'delete': 'destroy'}), name='comment-detail'),
     path('user-profile-stats/', profileStats.as_view(), name='profile-stats'),
     path('main-page-stats/', mainPageStats.as_view(), name='main-page-stats'),
+    path('book-detail-stats/', bookdetailStats.as_view(), name='book-detail-stats'),
+
 ]
