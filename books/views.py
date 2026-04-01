@@ -1,7 +1,8 @@
 from rest_framework import viewsets
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from users.permissions import (
-    GuestPermission, StudentPermission, TeacherPermission, LibrarianPermission, AdminPermission, SuperAdminPermission, IsNotBanned
+    GuestPermission, StudentPermission, TeacherPermission, LibrarianPermission, AdminPermission, SuperAdminPermission,
+    IsNotBanned
 )
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters as drf_filters
@@ -14,22 +15,28 @@ from django.db.models import F
 from drf_spectacular.utils import extend_schema
 from drf_spectacular.openapi import OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
-from .models import Category, Tag, Kitob, Comment, Reservation, Journals, Rating, Bookmark,Author, subCategory
+from .models import Category, Tag, Kitob, Comment, Reservation, Journals, Rating, Bookmark, Author, subCategory
 from .serializers import (
-    CategorySerializer, TagSerializer, KitobSerializer, CommentSerializer,subCategorySerializer,
+    CategorySerializer, TagSerializer, KitobSerializer, CommentSerializer, subCategorySerializer,
     ReservationSerializer, JournalsSerializer, RatingSerializer, BookmarkSerializer, AuthorSerializer
 )
 from .paginator import KitobPagination, ReservationPagination
+
+
 class SubCategoryViewSet(viewsets.ModelViewSet):
     """API endpoint for subcategories."""
     queryset = subCategory.objects.all()
     serializer_class = subCategorySerializer
+
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
-            permission_classes = [GuestPermission|StudentPermission|TeacherPermission|LibrarianPermission|SuperAdminPermission]
+            permission_classes = [
+                GuestPermission | StudentPermission | TeacherPermission | LibrarianPermission | SuperAdminPermission]
         else:
-            permission_classes = [LibrarianPermission|SuperAdminPermission]
+            permission_classes = [LibrarianPermission | SuperAdminPermission]
         return [permission() for permission in permission_classes]
+
+
 class KitobFilter(filters.FilterSet):
     # AllValuesMultipleFilter automatically handles lists like ?category=1&category=2 
     # and performs an 'IN' lookup, fixing potential issues in the original code.
@@ -69,7 +76,7 @@ class KitobFilter(filters.FilterSet):
                 start_date, end_date = value.split(',')
                 return queryset.filter(read_time__range=[start_date.strip(), end_date.strip()])
             except ValueError:
-                pass # Fails gracefully if format is incorrect
+                pass  # Fails gracefully if format is incorrect
         return queryset
 
     def filter_is_audio(self, queryset, name, value):
@@ -100,31 +107,41 @@ class KitobFilter(filters.FilterSet):
         if value in sort_mapping:
             return queryset.order_by(sort_mapping[value])
         return queryset
+
+
 class AuthorViewSet(viewsets.ModelViewSet):
     """API endpoint for authors."""
     queryset = Author.objects.all()
     serializer_class = AuthorSerializer
     permission_classes = [AllowAny]
 
+
 class BookmarkViewSet(viewsets.ModelViewSet):
     """API endpoint for bookmarks."""
     serializer_class = BookmarkSerializer
-    permission_classes = [StudentPermission|LibrarianPermission|SuperAdminPermission, IsNotBanned]
+    permission_classes = [StudentPermission | LibrarianPermission | SuperAdminPermission, IsNotBanned]
+
     def get_queryset(self):
         user = self.request.user
         return Bookmark.objects.filter(user=user).order_by('-c_at')
+
+
 class CategoryViewSet(viewsets.ModelViewSet):
     """API endpoint for categories."""
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
+
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
-            permission_classes = [GuestPermission|StudentPermission|TeacherPermission|LibrarianPermission|SuperAdminPermission]
+            permission_classes = [
+                GuestPermission | StudentPermission | TeacherPermission | LibrarianPermission | SuperAdminPermission]
         else:
-            permission_classes = [LibrarianPermission|SuperAdminPermission]
+            permission_classes = [LibrarianPermission | SuperAdminPermission]
         return [permission() for permission in permission_classes]
+
     def retrieve(self, request, *args, **kwargs):
         return super().retrieve(request, *args, **kwargs)
+
 
 @extend_schema(
     description="API endpoint for tags. Supports filtering and CRUD operations.",
@@ -140,12 +157,15 @@ class TagViewSet(viewsets.ModelViewSet):
     """API endpoint for tags."""
     queryset = Tag.objects.all()
     serializer_class = TagSerializer
+
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
-            permission_classes = [GuestPermission|StudentPermission|TeacherPermission|LibrarianPermission|SuperAdminPermission]
+            permission_classes = [
+                GuestPermission | StudentPermission | TeacherPermission | LibrarianPermission | SuperAdminPermission]
         else:
-            permission_classes = [LibrarianPermission|SuperAdminPermission]
+            permission_classes = [LibrarianPermission | SuperAdminPermission]
         return [permission() for permission in permission_classes]
+
     @extend_schema(
         description="Retrieve a single tag by its ID.",
         summary="Retrieve a tag.",
@@ -159,6 +179,7 @@ class TagViewSet(viewsets.ModelViewSet):
     def retrieve(self, request, *args, **kwargs):
         return super().retrieve(request, *args, **kwargs)
 
+
 @extend_schema(
     description="API endpoint for books (Kitob). Supports filtering, sorting, and searching.",
     summary="Manage books (Kitob).",
@@ -167,16 +188,18 @@ class TagViewSet(viewsets.ModelViewSet):
 class KitobViewSet(viewsets.ModelViewSet):
     """API endpoint for books (Kitob)."""
     queryset = Kitob.objects.filter(visible=True)
-    serializer_class = KitobSerializer  
+    serializer_class = KitobSerializer
     pagination_class = KitobPagination
     filter_backends = [DjangoFilterBackend, drf_filters.SearchFilter]
     filterset_class = KitobFilter
     search_fields = ['name', 'author__name']
+
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
-            permission_classes = [GuestPermission|StudentPermission|TeacherPermission|LibrarianPermission|SuperAdminPermission]
+            permission_classes = [
+                GuestPermission | StudentPermission | TeacherPermission | LibrarianPermission | SuperAdminPermission]
         else:
-            permission_classes = [LibrarianPermission|SuperAdminPermission]
+            permission_classes = [LibrarianPermission | SuperAdminPermission]
         return [permission() for permission in permission_classes]
 
     def list(self, request, *args, **kwargs):
@@ -202,17 +225,17 @@ class KitobViewSet(viewsets.ModelViewSet):
         request=OpenApiTypes.OBJECT,
         responses={200: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT}
     )
-    @action(detail=True, methods=['post'], permission_classes=[StudentPermission|SuperAdminPermission])
+    @action(detail=True, methods=['post'], permission_classes=[StudentPermission | SuperAdminPermission])
     def rate_and_comment(self, request, pk=None):
         book = self.get_object()
         user = request.user
-        
+
         rating_score = request.data.get('score')
         comment_content = request.data.get('content')
-        
+
         if not rating_score and not comment_content:
             return Response({'detail': 'Either score or content is required.'}, status=status.HTTP_400_BAD_REQUEST)
-        
+
         try:
             with transaction.atomic():
                 comment = None
@@ -220,12 +243,13 @@ class KitobViewSet(viewsets.ModelViewSet):
                     comment = Comment.objects.create(
                         user=user, book=book, content=comment_content
                     )
-                
+
                 if rating_score:
                     try:
                         score = int(rating_score)
                         if score < 1 or score > 5:
-                            return Response({'detail': 'Score must be between 1 and 5.'}, status=status.HTTP_400_BAD_REQUEST)
+                            return Response({'detail': 'Score must be between 1 and 5.'},
+                                            status=status.HTTP_400_BAD_REQUEST)
                     except ValueError:
                         return Response({'detail': 'Invalid score.'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -233,13 +257,13 @@ class KitobViewSet(viewsets.ModelViewSet):
                         user=user, book=book,
                         defaults={'score': score}
                     )
-                    
+
                     if comment:
                         rating.comment = comment
                         rating.save()
                         comment.rating = rating
                         comment.save()
-                        
+
             return Response({'detail': 'Rating and comment saved successfully.'}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -251,14 +275,16 @@ class KitobViewSet(viewsets.ModelViewSet):
             permission_classes = [IsAuthenticated]
         return [permission() for permission in permission_classes]
 
+
 class JournalsViewSet(viewsets.ModelViewSet):
     """API endpoint for journals."""
     queryset = Journals.objects.all()
     serializer_class = JournalsSerializer
     pagination_class = KitobPagination
+
     def get_permissions(self):
         if self.action in ['list', 'retrieve', 'create', 'update', 'partial_update', 'destroy']:
-            permission_classes = [TeacherPermission|SuperAdminPermission]
+            permission_classes = [TeacherPermission | SuperAdminPermission]
         else:
             permission_classes = [SuperAdminPermission]
         return [permission() for permission in permission_classes]
@@ -291,6 +317,7 @@ class JournalsViewSet(viewsets.ModelViewSet):
             permission_classes = [IsAuthenticated]
         return [permission() for permission in permission_classes]
 
+
 class ReservationFilter(filters.FilterSet):
     # Exact matches for IDs and Status
     user_id = filters.NumberFilter(field_name='user_id')
@@ -299,6 +326,8 @@ class ReservationFilter(filters.FilterSet):
     class Meta:
         model = Reservation
         fields = ['user_id', 'status']
+
+
 @extend_schema(
     description="API endpoint for reservations. Supports creating, managing, and tracking book reservations.",
     summary="Manage reservations.",
@@ -310,8 +339,8 @@ class ReservationViewSet(viewsets.ModelViewSet):
     queryset = Reservation.objects.all()
     pagination_class = ReservationPagination
     filter_backends = [
-        DjangoFilterBackend, 
-        drf_filters.SearchFilter, 
+        DjangoFilterBackend,
+        drf_filters.SearchFilter,
         drf_filters.OrderingFilter
     ]
     filterset_class = ReservationFilter
@@ -319,12 +348,14 @@ class ReservationViewSet(viewsets.ModelViewSet):
     ordering_fields = '__all__'
     ordering = ['-id']
     ordering_param = 'sort'
+
     def get_permissions(self):
         if self.action in ['list', 'retrieve', 'create', 'update', 'partial_update', 'destroy']:
-            permission_classes = [StudentPermission|LibrarianPermission|SuperAdminPermission]
+            permission_classes = [StudentPermission | LibrarianPermission | SuperAdminPermission]
         else:
             permission_classes = [SuperAdminPermission]
         return [permission() for permission in permission_classes]
+
     @extend_schema(
         summary="create reservation for students.",
         description="Create a new reservation for a book. This endpoint is restricted to authenticated students.",
@@ -334,25 +365,28 @@ class ReservationViewSet(viewsets.ModelViewSet):
         reservation = self.get_object()
         if reservation.user != request.user:
             return Response({"error": "You can only cancel your own reservations."}, status=status.HTTP_403_FORBIDDEN)
-        
+
         if reservation.status != 'pending':
-            return Response({"error": "Only pending reservations can be cancelled."}, status=status.HTTP_400_BAD_REQUEST)
-        
+            return Response({"error": "Only pending reservations can be cancelled."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
         reservation.status = 'cancelled'
         reservation.save()
         return Response({"detail": "Reservation cancelled successfully."}, status=status.HTTP_200_OK)
+
     @action(detail=False, methods=['post'], url_path='create_for_student')
     def create_for_student(self, request, *args, **kwargs):
         book_id = request.data.get('book_id') or request.data.get('book')
         if not book_id:
             return Response({"error": "book_id is required"}, status=status.HTTP_400_BAD_REQUEST)
-            
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save(user=request.user, book_id=book_id)
-        
+
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
     @extend_schema(
         summary="Retrieve a list of reservations.",
         description="Get a paginated list of reservations. This endpoint is restricted to authenticated users.",
@@ -382,12 +416,14 @@ class ReservationViewSet(viewsets.ModelViewSet):
         """,
         responses={200: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT}
     )
-    @action(detail=True, methods=['post'], permission_classes=[LibrarianPermission|AdminPermission|SuperAdminPermission])
+    @action(detail=True, methods=['post'],
+            permission_classes=[LibrarianPermission | AdminPermission | SuperAdminPermission])
     def approve(self, request, pk=None):
         reservation = self.get_object()
         if reservation.status != 'pending':
-            return Response({'detail': 'Only pending reservations can be approved.'}, status=status.HTTP_400_BAD_REQUEST)
-        
+            return Response({'detail': 'Only pending reservations can be approved.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
         try:
             reservation.status = 'approved'
             reservation.save()
@@ -403,12 +439,13 @@ class ReservationViewSet(viewsets.ModelViewSet):
         """,
         responses={200: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT}
     )
-    @action(detail=True, methods=['post'], permission_classes=[LibrarianPermission|AdminPermission|SuperAdminPermission])
+    @action(detail=True, methods=['post'],
+            permission_classes=[LibrarianPermission | AdminPermission | SuperAdminPermission])
     def give_book(self, request, pk=None):
         reservation = self.get_object()
         if reservation.status != 'approved':
-             return Response({'detail': 'Reservation must be approved first.'}, status=status.HTTP_400_BAD_REQUEST)
-        
+            return Response({'detail': 'Reservation must be approved first.'}, status=status.HTTP_400_BAD_REQUEST)
+
         try:
             reservation.status = 'given'
             reservation.save()
@@ -423,16 +460,17 @@ class ReservationViewSet(viewsets.ModelViewSet):
         """,
         responses={200: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT}
     )
-    @action(detail=True, methods=['post'], permission_classes=[LibrarianPermission|AdminPermission|SuperAdminPermission])
+    @action(detail=True, methods=['post'],
+            permission_classes=[LibrarianPermission | AdminPermission | SuperAdminPermission])
     def return_book(self, request, pk=None):
         reservation = self.get_object()
-        
+
         if reservation.status != 'given':
             return Response(
                 {'detail': 'Only given books can be marked as returned.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
         try:
             reservation.status = 'returned'
             reservation.save()
@@ -450,13 +488,14 @@ class RatingViewSet(viewsets.ModelViewSet):
     """API endpoint for book ratings."""
     queryset = Rating.objects.all()
     serializer_class = RatingSerializer
+
     def get_permissions(self):
         if self.action in ['list', 'retrieve', 'create', 'update', 'partial_update', 'destroy']:
-            permission_classes = [StudentPermission|SuperAdminPermission]
+            permission_classes = [StudentPermission | SuperAdminPermission]
         else:
             permission_classes = [SuperAdminPermission]
         return [permission() for permission in permission_classes]
-    
+
     @extend_schema(
         parameters=[
             OpenApiParameter(
@@ -478,10 +517,12 @@ class RatingViewSet(viewsets.ModelViewSet):
         if book_id:
             queryset = queryset.filter(book_id=book_id)
         return queryset
-    
+
     def perform_create(self, serializer):
         """Automatically set the user to the current authenticated user."""
         serializer.save(user=self.request.user)
+
+
 @extend_schema(
     description="API endpoint for book comments. Allows users to comment on books and view comments.",
     summary="Manage book comments.",
@@ -506,9 +547,10 @@ class CommentViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
-            permission_classes = [GuestPermission|StudentPermission|TeacherPermission|LibrarianPermission|SuperAdminPermission]
+            permission_classes = [
+                GuestPermission | StudentPermission | TeacherPermission | LibrarianPermission | SuperAdminPermission]
         elif self.action in ['create', 'update', 'partial_update', 'destroy']:
-            permission_classes = [StudentPermission|SuperAdminPermission]
+            permission_classes = [StudentPermission | SuperAdminPermission]
         else:
             permission_classes = [SuperAdminPermission]
         return [permission() for permission in permission_classes]
@@ -516,4 +558,3 @@ class CommentViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         book_id = self.kwargs.get('kitob_pk')
         serializer.save(user=self.request.user, book_id=book_id)
-    

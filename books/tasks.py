@@ -5,6 +5,7 @@ from datetime import timedelta
 from users.tasks import send_notification
 from users.models import Notification
 
+
 @shared_task
 def check_reservation_status():
     """
@@ -16,14 +17,14 @@ def check_reservation_status():
     # If deadline passed, status should be 'not_returned'
     # Send notification is overdue
     overdue_reservations = Reservation.objects.filter(
-        status='given', 
+        status='given',
         reserved_until__lt=now
     )
     for reservation in overdue_reservations:
         reservation.status = 'not_returned'
         reservation.save()
         send_notification.delay(
-            reservation.user.id, 
+            reservation.user.id,
             f"Your book '{reservation.book.name}' is overdue. Please return it immediately.",
             "Book Overdue"
         )
@@ -32,30 +33,30 @@ def check_reservation_status():
     # Send warning if due date is within 24 hours from now
     warning_buffer_start = now
     warning_buffer_end = now + timedelta(days=1)
-    
+
     warning_reservations = Reservation.objects.filter(
         status='given',
         reserved_until__gt=warning_buffer_start,
         reserved_until__lt=warning_buffer_end
     )
-    
+
     for reservation in warning_reservations:
         message = f"The book '{reservation.book.name}' is due tomorrow. Please return it on time."
         title = "Return Reminder"
-        
+
         # Check if notification already sent in the last 24 hours
         if not Notification.objects.filter(
-            user=reservation.user,
-            title=title,
-            message=message,
-            created_at__gte=now - timedelta(days=1)
+                user=reservation.user,
+                title=title,
+                message=message,
+                created_at__gte=now - timedelta(days=1)
         ).exists():
             send_notification.delay(
-                reservation.user.id, 
-                message, 
+                reservation.user.id,
+                message,
                 title
             )
-        
+
     # 3. Handle Expired Approvals (Approved -> Cancelled/Deleted)
     # If a user doesn't pick up the book within 24 hours of approval.
     pickup_deadline = now - timedelta(hours=24)
@@ -63,7 +64,7 @@ def check_reservation_status():
         status='approved',
         approved_at__lt=pickup_deadline,
     )
-    
+
     for reservation in expired_reservations:
         send_notification.delay(
             reservation.user.id,

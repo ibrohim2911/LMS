@@ -4,6 +4,4 @@ from .models import User, ActiveRefreshToken, Notification
 
 admin.site.register(ActiveRefreshToken)
 admin.site.register(Notification)
-admin.site.register(User)  
-
-
+admin.site.register(User)

@@ -1,6 +1,7 @@
 from celery import shared_task
 from .models import Notification, User
 
+
 @shared_task
 def send_notification(user_id, message, title="Notification"):
     try:

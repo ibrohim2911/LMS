@@ -21,6 +21,7 @@ from rest_framework_simplejwt.tokens import RefreshToken, UntypedToken
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework import status
 
+
 class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = NotificationSerializer
     permission_classes = [IsAuthenticated]
@@ -42,6 +43,7 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     def mark_all_read(self, request):
         self.get_queryset().update(is_read=True)
         return Response({'status': 'all marked as read'})
+
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
@@ -113,13 +115,14 @@ class CustomTokenVerifyView(TokenVerifyView):
 class getme(APIView):
     """API endpoint to get the current authenticated user's information."""
     permission_classes = [IsAuthenticated]
+
     def get(self, request):
         if request.user.is_authenticated:
             serializer = UserSerializer(request.user)
             return Response(serializer.data)
         else:
             return Response({'detail': 'Authentication credentials were not provided.'}, status=401)
-    
+
 
 @extend_schema(
     request=LogoutSerializer,
@@ -129,12 +132,12 @@ class getme(APIView):
 class LogoutView(APIView):
     """API endpoint to logout the current user by deleting the refresh token."""
     permission_classes = [IsAuthenticated]
-    
+
     def post(self, request):
         serializer = LogoutSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
+
         refresh_token = serializer.validated_data['refresh']
         deleted_count, _ = ActiveRefreshToken.objects.filter(token=refresh_token).delete()
         if deleted_count == 0:
@@ -149,4 +152,4 @@ class UserViewSet(viewsets.ModelViewSet):
     """
     queryset = User.objects.all().order_by('-date_joined')
     serializer_class = UserSerializer
-    permission_classes = [AdminPermission|SuperAdminPermission]
+    permission_classes = [AdminPermission | SuperAdminPermission]

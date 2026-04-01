@@ -13,6 +13,8 @@ from drf_spectacular.types import OpenApiTypes
 from .models import Kitob, Reservation, Bookmark, Rating, Category, subCategory
 
 User = get_user_model()
+
+
 class bookdetailStats(APIView):
     """
     API endpoint to get statistics for a specific book.
@@ -22,9 +24,10 @@ class bookdetailStats(APIView):
     @extend_schema(
         parameters=[
             OpenApiParameter(name='book_id', type=OpenApiTypes.INT, description='ID of the book to get stats for'),
-            OpenApiParameter(name='user_id', type=OpenApiTypes.INT, description='ID of the user to get their rating for the book'),
+            OpenApiParameter(name='user_id', type=OpenApiTypes.INT,
+                             description='ID of the user to get their rating for the book'),
         ],
-        
+
         responses={200: 'A JSON object containing the book statistics.'},
         description="Get statistics for a specific book, including total reservations, average rating, and availability status."
     )
@@ -61,6 +64,8 @@ class bookdetailStats(APIView):
         }
 
         return Response(stats)
+
+
 class profileStats(APIView):
     """
     API endpoint to get statistics for a user's profile.
@@ -70,8 +75,10 @@ class profileStats(APIView):
     @extend_schema(
         parameters=[
             OpenApiParameter(name='user_id', type=OpenApiTypes.INT, description='ID of the user to get stats for'),
-            OpenApiParameter(name='start_date', type=OpenApiTypes.DATE, description='Start date for filtering reservations (YYYY-MM-DD)'),
-            OpenApiParameter(name='end_date', type=OpenApiTypes.DATE, description='End date for filtering reservations (YYYY-MM-DD)'),
+            OpenApiParameter(name='start_date', type=OpenApiTypes.DATE,
+                             description='Start date for filtering reservations (YYYY-MM-DD)'),
+            OpenApiParameter(name='end_date', type=OpenApiTypes.DATE,
+                             description='End date for filtering reservations (YYYY-MM-DD)'),
         ],
         responses={200: 'A JSON object containing the user statistics.'},
         description="Get statistics for a user's profile, including total reservations, active reservations, and most reserved books."
@@ -113,10 +120,12 @@ class profileStats(APIView):
             'ratings': ratings,
             'pending_reservations': pending_reservations,
             'returned_reservations': returned_reservations,
-        
+
         }
 
         return Response(stats)
+
+
 class mainPageStats(APIView):
     """
     API endpoint to get statistics for the main page.

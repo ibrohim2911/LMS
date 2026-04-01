@@ -3,11 +3,13 @@ from django.db import models
 from django.utils import timezone
 
 USER_ROLES = (
-    ("admin","admin"),
-    ("librarian","librarian"),
-    ("student","student"),
-    ("teacher","teacher"),
-    )
+    ("admin", "admin"),
+    ("librarian", "librarian"),
+    ("student", "student"),
+    ("teacher", "teacher"),
+)
+
+
 class User(AbstractUser):
     """
     Custom user model that includes roles and a temporary ban mechanism.
@@ -19,6 +21,7 @@ class User(AbstractUser):
                                           help_text="The user is banned until this date and time.")
     max_allowed = models.IntegerField(default=3)
     img = models.ImageField(upload_to='user_images/', null=True, blank=True)
+
     @property
     def is_banned(self):
         """Checks if the user is currently banned."""
@@ -39,6 +42,7 @@ class ActiveRefreshToken(models.Model):
         verbose_name = "Active Refresh Token"
         verbose_name_plural = "Active Refresh Tokens"
 
+
 class Notification(models.Model):
     """Model to store notifications for users."""
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
@@ -49,5 +53,6 @@ class Notification(models.Model):
 
     def __str__(self):
         return f'Notification for {self.user.username} at {self.created_at}'
+
     class Meta:
         ordering = ['-created_at']

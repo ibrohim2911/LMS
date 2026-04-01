@@ -52,6 +52,7 @@ class LogoutSerializer(serializers.Serializer):
 
 class NotificationSerializer(serializers.ModelSerializer):
     """Serializer for the Notification model."""
+
     class Meta:
         model = Notification
         fields = '__all__'
