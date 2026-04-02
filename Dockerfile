@@ -1,5 +1,5 @@
 # Python'ning yengil rasmiy versiyasidan foydalanamiz
-FROM python:3.10-slim
+FROM python:3.10-slim-buster
 
 # Konteyner ichida ishchi papkani ko'rsatamiz
 WORKDIR /app
@@ -11,7 +11,8 @@ ENV PYTHONUNBUFFERED 1
 # Kerakli kutubxonalarni o'rnatish
 # Eslatma: loyihangizda requirements.txt fayli bo'lishi shart
 COPY requirements.txt /app/
-RUN pip install --upgrade pip && pip install -r requirements.txt
+RUN pip install --no-cache-dir --progress-bar off --upgrade pip && \
+    pip install --no-cache-dir --progress-bar off -r requirements.txt
 
 # Loyihaning barcha fayllarini konteynerga ko'chiramiz
 COPY . /app/
