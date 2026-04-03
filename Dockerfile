@@ -11,8 +11,7 @@ ENV PYTHONUNBUFFERED 1
 # Kerakli kutubxonalarni o'rnatish
 # Eslatma: loyihangizda requirements.txt fayli bo'lishi shart
 COPY requirements.txt /app/
-RUN pip install --no-cache-dir --progress-bar off --upgrade pip && \
-    pip install --no-cache-dir --progress-bar off -r requirements.txt
+RUN pip install --upgrade pip && pip install -r requirements.txt
 
 # Loyihaning barcha fayllarini konteynerga ko'chiramiz
 COPY . /app/
