@@ -320,7 +320,7 @@ class ReservationViewSet(viewsets.ModelViewSet):
     ordering = ['-id']
     ordering_param = 'sort'
     def get_permissions(self):
-        if self.action in ['list', 'retrieve', 'create', 'update', 'partial_update', 'destroy']:
+        if self.action in ['list', 'retrieve', 'create', 'update', 'partial_update', 'destroy', 'create_for_student', 'cancel_for_student']:
             permission_classes = [StudentPermission|LibrarianPermission|SuperAdminPermission]
         else:
             permission_classes = [SuperAdminPermission]
